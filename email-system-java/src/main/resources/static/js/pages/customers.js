@@ -18,7 +18,7 @@ function CustomersPage() {
       </select>
       <button class="btn btn-sm btn-secondary" id="btnSearch">搜索</button>
       <span class="search-divider"></span>
-      <!-- v2.38 需求2.1：去掉工具栏的"编辑"按钮，编辑统一走"双击整行 → 客户详情 → 编辑" -->
+      <!-- v2.38 需求2.1：去掉工具栏的"编辑"按钮，编辑统一走"双击整行 → 编辑客户窗口"（v2.42 需求1：双击即进入编辑态） -->
       <button class="btn btn-sm btn-secondary" id="btnBatchActivate" disabled>生效</button>
       <button class="btn btn-sm btn-secondary" id="btnBatchDeactivate" disabled>失效</button>
       <button class="btn btn-sm btn-danger" id="btnBatchDelete" disabled>删除</button>
@@ -175,12 +175,12 @@ async function loadCustomers() {
         selectedIds = [parseInt(this.dataset.id)];
         applyCheckboxState();
       };
-      // v2.38 需求2.2：整行双击打开该客户的"客户详情"（默认只读，可在其中点"编辑"）
+      // v2.42 需求1：整行双击直接进入"编辑客户"窗口（客户号/创建时间/最后修改时间只读）
       row.ondblclick = function() {
         window.showCustomerDetail(parseInt(this.dataset.id, 10));
       };
       row.style.cursor = 'pointer';
-      row.title = '双击查看/编辑该客户信息';
+      row.title = '双击编辑该客户信息';
     });
   } else {
     customerTotal = res.code === 0 ? res.data.total : 0;
@@ -472,69 +472,44 @@ function refreshCustomerListIfOpen() {
 }
 
 /**
- * v2.39 需求2：客户详情的只读态与编辑态共用这一份 markup 与同一批控件，
- * 只切换"是否可编辑"，因此两个界面的大小、字体、样式完全一致，
- * 也不再需要只读视图底部那行说明小字。
- * 控件 id 与"新增客户"表单同名（cName / cEmail / …），故 readCustomerForm、
- * validateCustomerForm、setupEmailValidation 三处校验逻辑原样复用。
- * @param {object} c 客户行
- * @param {boolean} editing 是否编辑态（渲染时的初值，切换由 setCustomerDetailEditable 就地完成）
+ * "编辑客户"窗口的表单（v2.42 需求1/2/3）：两列并排，除"备注"外标签与输入框同一行，
+ * 两列的标签轨与值轨都左对齐；"备注"是跨整行的标签 + 多行文本域。
+ * 客户号 / 创建时间 / 最后修改时间渲染成 .cd-value 纯文本，不进 readCustomerForm()，
+ * 因此 PUT 请求体里根本没有这三个键——编号仍由后端按主键派生，时间戳仍由数据库维护。
  */
-function customerDetailHTML(c, editing) {
-  const item = (label, control, full) =>
-    `<div class="cd-item${full ? ' full' : ''}"><span class="cd-label">${label}</span>${control}</div>`;
+function customerDetailHTML(c) {
+  const field = (label, control) => `<span class="cd-label">${label}</span>${control}`;
   const req = '<span class="cd-req"> *</span>';
-  // 渲染时即带上只读限制，避免"窗口刚打开的那一瞬字段可写"
-  const ro = editing ? '' : ' readonly placeholder="-"';
   const input = (id, value, type = 'text') =>
-    `<input class="cd-input" id="${id}" type="${type}" value="${escHtml(value || '')}"${ro}>`;
-  return `<div class="customer-detail${editing ? ' is-editing' : ''}" id="customerDetailBox">
-    ${item('客户号', `<span class="cd-value">${escHtml(c.customer_no || '-')}</span>`)}
-    ${item(`姓名${req}`, input('cName', c.name))}
-    ${item('公司', input('cCompany', c.company))}
-    ${item(`邮箱${req}`, input('cEmail', c.email, 'email') + '<div class="cd-error" id="emailError">请输入有效的邮箱地址</div>')}
-    ${item('电话', input('cPhone', c.phone))}
-    ${item('国家', input('cCountry', c.country))}
-    ${item('标签', input('cTags', c.tags))}
-    ${item('客户有效性', `<select class="cd-select" id="cStatus" tabindex="${editing ? 0 : -1}">
-        <option value="active" ${c.status !== 'inactive' ? 'selected' : ''}>有效（可参与发送任务）</option>
-        <option value="inactive" ${c.status === 'inactive' ? 'selected' : ''}>失效（不会出现在发送任务客户列表）</option>
-      </select>`)}
-    ${item('备注', `<textarea class="cd-input" id="cNotes"${ro}>${escHtml(c.notes || '')}</textarea>`, true)}
-    ${item('创建时间', `<span class="cd-value">${escHtml(fmtDateTime(c.created_at))}</span>`)}
-    ${item('最后修改时间', `<span class="cd-value">${escHtml(fmtDateTime(c.updated_at))}</span>`)}
+    `<input class="cd-input" id="${id}" type="${type}" value="${escHtml(value || '')}">`;
+  const text = (v) => `<span class="cd-value">${escHtml(v || '-')}</span>`;
+  return `<div class="customer-detail" id="customerDetailBox">
+    <div class="cd-col">
+      ${field('客户号', text(c.customer_no))}
+      ${field('公司', input('cCompany', c.company))}
+      ${field('电话', input('cPhone', c.phone))}
+      ${field('标签', input('cTags', c.tags))}
+      ${field('创建时间', text(fmtDateTime(c.created_at)))}
+      <span class="cd-label cd-span">备注</span>
+      <textarea class="cd-input cd-span" id="cNotes">${escHtml(c.notes || '')}</textarea>
+    </div>
+    <div class="cd-col">
+      ${field(`姓名${req}`, input('cName', c.name))}
+      ${field(`邮箱${req}`, input('cEmail', c.email, 'email')
+        + '<div class="cd-error cd-span" id="emailError">请输入有效的邮箱地址</div>')}
+      ${field('国家', input('cCountry', c.country))}
+      ${field('有效性', `<select class="cd-select" id="cStatus">
+          <option value="active" ${c.status !== 'inactive' ? 'selected' : ''}>有效</option>
+          <option value="inactive" ${c.status === 'inactive' ? 'selected' : ''}>失效</option>
+        </select>`)}
+      ${field('最后修改时间', text(fmtDateTime(c.updated_at)))}
+    </div>
   </div>`;
 }
 
 /**
- * 切换客户详情的可编辑状态（不重建 DOM，所以窗口尺寸/字体/样式两态一致）。
- * 只读态：输入框加 readonly、下拉框退出 Tab 序（CSS 另把 pointer-events 关掉），
- * 并把控件画成无边框无底色的纯文本；空值以"-"占位，编辑态则不留占位以免被误读为内容。
- */
-function setCustomerDetailEditable(editable) {
-  const box = document.getElementById('customerDetailBox');
-  if (!box) return;
-  box.classList.toggle('is-editing', editable);
-  box.querySelectorAll('.cd-input').forEach(el => {
-    if (editable) {
-      el.removeAttribute('readonly');
-      el.removeAttribute('placeholder');
-    } else {
-      el.setAttribute('readonly', '');
-      el.setAttribute('placeholder', '-');
-      el.style.borderColor = '';
-    }
-  });
-  const sel = document.getElementById('cStatus');
-  if (sel) sel.tabIndex = editable ? 0 : -1;
-  const errEl = document.getElementById('emailError');
-  if (errEl && !editable) errEl.style.display = 'none';
-}
-
-/**
- * 打开"客户详情"对话框（v2.38 需求2.2 取代原"编辑客户"窗口）。
- * v2.39 需求2：只读态与编辑态在同一个弹窗、同一份 DOM 内切换——
- * 点"编辑"就地解除控件的只读限制（确认按钮同时变为"保存"），点"保存"才提交。
+ * 打开"编辑客户"对话框。v2.42 需求1/3：客户管理整行双击、发送任务-发送记录整行双击
+ * 两个入口都直接进入编辑态，且共用这一份实现与同一个窗口，所以两处样式必然一致。
  * @param {number} id 客户 ID
  * @param {Function} [onSaved] 保存成功后的回调，供非客户管理页的调用方刷新自己的列表（v2.35 需求3.4 → v2.38 需求3.1）
  */
@@ -543,21 +518,13 @@ window.showCustomerDetail = async function(id, onSaved) {
   const c = ((res.data && res.data.customers) || []).find(x => x.id === id);
   if (!c) { showToast('未找到该客户，可能已被删除', 'error'); return; }
 
-  let editing = false;
   Modal.show({
-    title: '客户详情',
-    content: customerDetailHTML(c, false),
-    confirmText: '编辑',
-    cancelText: '关闭',
+    title: '编辑客户',
+    content: customerDetailHTML(c),
+    confirmText: '保存',
+    cancelText: '取消',
+    narrow: true,
     onConfirm: async () => {
-      if (!editing) {
-        editing = true;
-        setCustomerDetailEditable(true);
-        document.getElementById('modalTitle').textContent = '客户详情 · 编辑';
-        document.getElementById('modalConfirm').textContent = '保存';
-        // 必须返回 true：否则弹窗会在切换到编辑态后立即关闭
-        return true;
-      }
       const data = readCustomerForm();
       if (!validateCustomerForm(data)) return true;
       const r = await api.put(`/api/customers/${id}`, data);

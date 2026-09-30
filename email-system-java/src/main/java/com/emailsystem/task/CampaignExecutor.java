@@ -327,20 +327,9 @@ public class CampaignExecutor {
     }
 
     private Map<String, String> buildVarMap(Customer customer, Map<String, String> customVars) {
-        Map<String, String> map = new LinkedHashMap<>();
-        map.put("cust_name", nullSafe(customer.getName()));
-        map.put("cust_email", nullSafe(customer.getEmail()));
-        map.put("cust_company", nullSafe(customer.getCompany()));
-        map.put("cust_phone", nullSafe(customer.getPhone()));
-        map.put("cust_country", nullSafe(customer.getCountry()));
-        map.put("cust_tags", nullSafe(customer.getTags()));
-        map.put("cust_notes", nullSafe(customer.getNotes()));
+        Map<String, String> map = CustomerService.toTemplateVars(customer);
         map.putAll(customVars);
         return map;
-    }
-
-    private String nullSafe(String s) {
-        return s != null ? s : "";
     }
 
     private Map<String, String> parseJson(String json) {

@@ -4,11 +4,22 @@ function CampaignsPage() {
       <h1>发送任务</h1>
       <button class="btn btn-primary" id="btnCreateCampaign">+ 创建任务</button>
     </div>
+    <!-- v2.42 需求6：任务操作从每行的行内按钮收敛到一条工具栏（形态同客户管理的 .customers-bar），
+         单击选中某条任务后，这些按钮才对那条记录生效；"暂停"即原"停止"（走 /{id}/cancel） -->
+    <div class="search-bar campaigns-bar">
+      <span class="bar-hint" id="campBarHint">单击下方任务行即可选中</span>
+      <button class="btn btn-sm btn-secondary" id="btnCampStart" disabled>发送</button>
+      <button class="btn btn-sm btn-secondary" id="btnCampPause" disabled>暂停</button>
+      <button class="btn btn-sm btn-secondary" id="btnCampResume" disabled>继续发送</button>
+      <button class="btn btn-sm btn-secondary" id="btnCampResendAll" disabled>全部重发</button>
+      <button class="btn btn-sm btn-secondary" id="btnCampEdit" disabled>编辑</button>
+      <button class="btn btn-sm btn-danger" id="btnCampDelete" disabled>删除</button>
+    </div>
     <div class="card">
       <div class="table-wrap">
         <table>
-          <thead><tr><th class="col-check"></th><th>任务名称</th><th>模板</th><th>SMTP</th><th>状态</th><th>进度</th><th>发送间隔</th><th title="列表按最近状态更新时间排序：任务创建时间与任务内任意一封邮件的最后发送时间取较近者">创建时间</th><th>操作</th></tr></thead>
-          <tbody id="campaignList"><tr><td colspan="9" style="text-align:center;color:var(--text-secondary)">加载中...</td></tr></tbody>
+          <thead><tr><th>任务名称</th><th>模板</th><th>SMTP</th><th>状态</th><th>进度</th><th>发送间隔</th><th title="列表按最近状态更新时间排序：任务创建时间与任务内任意一封邮件的最后发送时间取较近者">创建时间</th></tr></thead>
+          <tbody id="campaignList"><tr><td colspan="7" style="text-align:center;color:var(--text-secondary)">加载中...</td></tr></tbody>
         </table>
       </div>
       <div id="campaignPagination" class="pag-bar"></div>
@@ -22,8 +33,9 @@ let campaignPage = 1;
 let campaignPageSize = 5;
 let campaignTotal = 0;
 let pollTimer = null;
-// v2.30 需求3：被勾选的任务行；只有勾选的行其"删除"按钮才可用，轮询/翻页刷新后保持勾选态
-const selectedCampaignIds = new Set();
+// v2.42 需求6：当前选中的任务（单选，工具栏按钮作用于它）；行数据缓存用于取状态
+let selectedCampaignId = null;
+let campaignRows = [];
 
 // v2.35 需求3.2：任务五态徽章统一由 components/format.js 的 campaignStatusBadge 渲染，
 // 状态口径（display_status）由后端推导，列表与仪表盘"任务发送统计"共用同一份文案。
@@ -42,6 +54,96 @@ const runTypeText = {
   resend_all: '全部重发',
 };
 
+/**
+ * v2.42 需求6：工具栏六个按钮各自的可用条件。判定口径与 v2.41 行内按钮完全一致，
+ * 只是从"按状态显示/隐藏按钮"改成"始终显示、不可用时置灰并在 title 说明原因"。
+ */
+function campaignFlags(c) {
+  const display = c.display_status || c.status;
+  const hasHistory = c.total > 0;
+  const everSent = (c.sent + c.failed) > 0;
+  const unfinished = c.total - c.sent;
+  return {
+    canStart: display === 'pending',
+    canPause: !!c.is_running,
+    // v2.30 需求4：只有真正发出去过邮件（成功或失败）的任务才提供"继续发送"
+    canResume: hasHistory && everSent && !c.is_running && c.status !== 'running' && unfinished > 0,
+    canResendAll: hasHistory && !c.is_running && (c.status === 'completed' || c.status === 'cancelled'),
+    // v2.27：只有"新建后一封都没发出去"的任务可编辑；已发送过的任务保留留痕，不给编辑入口
+    canEdit: !c.is_running && !everSent && c.status !== 'completed',
+    // v2.30 需求2：新建（未发送）任务也可删除，只保留"发送中的任务不可删"这一限制
+    canDelete: !c.is_running && c.status !== 'running',
+  };
+}
+
+/** 各按钮置灰时的原因说明（可用时的提示见 enabled 分支） */
+function campaignButtonHint(key, c, f) {
+  if (f[key]) {
+    return {
+      canStart: '立即向该任务的全部收件客户发送邮件',
+      canPause: '暂停该任务：已发送的邮件不受影响，未发送的保持待发送',
+      canResume: '重新发送任务中所有未成功的邮件，已发送成功的不再重发',
+      canResendAll: '重新发送给该任务中的全部客户，包括之前已发送成功的',
+      canEdit: '修改该任务的名称、模板、SMTP、发送方式与收件人（仅未发出过邮件的任务可编辑）',
+      canDelete: '删除该发送任务，相关发送记录一并删除',
+    }[key];
+  }
+  switch (key) {
+    case 'canStart':
+      return '该任务已不是待发送状态，如需再次发送请用"继续发送"或"全部重发"';
+    case 'canPause':
+      return '任务当前没有在发送，无需暂停';
+    case 'canResume':
+      return '只有已发出过邮件、且仍有未成功记录的任务可以"继续发送"';
+    case 'canResendAll':
+      return '只有已完成或已停止的任务可以"全部重发"';
+    case 'canEdit':
+      if (c.is_running || c.status === 'running') return '任务正在发送中，请先停止后再编辑';
+      return (c.sent + c.failed) > 0 ? '该任务已发送过邮件，不支持编辑' : '该任务已完成，不支持编辑';
+    case 'canDelete':
+      return '任务正在发送中，请先暂停后再删除';
+    default:
+      return '';
+  }
+}
+
+const CAMPAIGN_BUTTONS = [
+  ['btnCampStart', 'canStart'],
+  ['btnCampPause', 'canPause'],
+  ['btnCampResume', 'canResume'],
+  ['btnCampResendAll', 'canResendAll'],
+  ['btnCampEdit', 'canEdit'],
+  ['btnCampDelete', 'canDelete'],
+];
+
+/** 工具栏状态：未选中任务时全部置灰；选中后按该任务的状态逐个回答"能不能做" */
+function updateCampaignToolbar() {
+  const c = selectedCampaignId != null ? campaignRows.find(x => x.id === selectedCampaignId) : null;
+  const f = c ? campaignFlags(c) : null;
+  CAMPAIGN_BUTTONS.forEach(([bid, key]) => {
+    const el = document.getElementById(bid);
+    if (!el) return;
+    el.disabled = !c;
+    el.title = c ? campaignButtonHint(key, c, f) : '请先单击选中一条任务';
+  });
+  const hint = document.getElementById('campBarHint');
+  if (!hint) return;
+  if (c) {
+    hint.textContent = `已选中：${c.name}`;
+    hint.title = `已选中任务「${c.name}」，工具栏按钮将作用于该任务`;
+  } else {
+    hint.textContent = '单击下方任务行即可选中';
+    hint.title = '';
+  }
+}
+
+/** 当前选中任务；未选中时提示并返回 null，供各按钮回调复用 */
+function requireSelectedCampaign() {
+  const c = selectedCampaignId != null ? campaignRows.find(x => x.id === selectedCampaignId) : null;
+  if (!c) showToast('请先单击选中一条任务', 'error');
+  return c;
+}
+
 async function loadCampaignList() {
   const res = await api.get(`/api/campaigns?page=${campaignPage}&page_size=${campaignPageSize}`);
   const tbody = document.getElementById('campaignList');
@@ -49,28 +151,16 @@ async function loadCampaignList() {
   const campaigns = res.code === 0 ? (res.data.campaigns || res.data) : [];
   const total = res.code === 0 ? (res.data.total || campaigns.length) : 0;
   campaignTotal = total;
+  campaignRows = campaigns;
+  // 任务列表是服务端分页：翻页/筛选后原选中项可能不在本页，此时清空选中而不是跨页保留
+  if (!campaigns.some(c => c.id === selectedCampaignId)) selectedCampaignId = null;
 
   if (campaigns.length > 0) {
     tbody.innerHTML = campaigns.map(c => {
       const pct = c.total > 0 ? Math.round((c.sent + c.failed) / c.total * 100) : 0;
-      const hasHistory = c.total > 0;
-      // v2.30 需求4：只有真正发出去过邮件（成功或失败）的任务才提供"继续发送"，新建未发送的任务不显示
-      const everSent = (c.sent + c.failed) > 0;
-      // 继续发送：未运行且存在“非已发送”的记录（故障/停止后恢复，已发送成功的不再重发）
-      const unfinished = c.total - c.sent;
-      const canResume = hasHistory && everSent && !c.is_running && c.status !== 'running' && unfinished > 0;
-      const canResendAll = hasHistory && !c.is_running && (c.status === 'completed' || c.status === 'cancelled');
-      const canStop = c.is_running;
-      // v2.30 需求2：新建（未发送）任务也可删除，只保留"发送中的任务不可删"这一限制
-      const canDelete = !c.is_running && c.status !== 'running';
-      // v2.30 需求3：删除按钮默认灰色不可用，勾选本行后才变红可用
-      const isChecked = selectedCampaignIds.has(c.id);
-      // v2.27：只有"新建后一封都没发出去"的任务可编辑；已发送过的任务保留留痕，不给编辑入口
-      const canEdit = !c.is_running && (c.sent + c.failed) === 0 && c.status !== 'completed';
       // v2.35 需求3.2：状态列与"发送"按钮都按后端推导的五态走，不再直接暴露数据库状态
       const display = c.display_status || c.status;
-      return `<tr class="clickable-row" data-cid="${c.id}" title="点击查看该任务的发送详情" onclick="rowViewCampaignDetail(event, ${c.id})">
-        <td class="col-check"><input type="checkbox" class="campaign-row-check" data-cid="${c.id}"${canDelete ? '' : ' disabled title="任务正在发送中，请先停止后再删除"'}${canDelete && isChecked ? ' checked' : ''} onchange="toggleCampaignDelete(this)"></td>
+      return `<tr class="clickable-row${c.id === selectedCampaignId ? ' row-selected' : ''}" data-cid="${c.id}" title="单击选中该任务并用上方工具栏操作，同时查看发送详情" onclick="rowSelectCampaign(event, ${c.id})">
         <td>${c.name}</td>
         <td>${c.template_name || '-'}</td>
         <td>${c.smtp_name || '-'}</td>
@@ -84,16 +174,6 @@ async function loadCampaignList() {
         </td>
         <td style="font-size:13px">${c.interval_min || 1} 分钟</td>
         <td style="font-size:13px">${fmtDateTime(c.created_at)}</td>
-        <td style="white-space:nowrap">
-          <div style="display:flex;gap:6px;flex-wrap:wrap">
-            ${display === 'pending' ? `<button class="btn btn-sm btn-success" onclick="startCampaign(${c.id})">发送</button>` : ''}
-            ${canStop ? `<button class="btn btn-sm btn-danger" onclick="stopCampaign(${c.id})">停止</button>` : ''}
-            ${canResume ? `<button class="btn btn-sm btn-warning" onclick="resumeCampaign(${c.id})" title="重新发送任务中所有未成功的邮件，已发送成功的不再重发">继续发送</button>` : ''}
-            ${canResendAll ? `<button class="btn btn-sm btn-primary" onclick="resendAllCampaign(${c.id})">全部重发</button>` : ''}
-            ${canEdit ? `<button class="btn btn-sm btn-secondary" onclick="editCampaign(${c.id})" title="修改该任务的名称、模板、SMTP、发送方式与收件人（仅未发出过邮件的任务可编辑）">编辑</button>` : ''}
-            <button class="btn btn-sm btn-danger btn-del-campaign" data-can-delete="${canDelete ? 1 : 0}" onclick="deleteCampaign(${c.id})"${canDelete && isChecked ? '' : ' disabled'} title="${canDelete ? '勾选本行后可删除该任务' : '任务正在发送中，请先停止后再删除'}">删除</button>
-          </div>
-        </td>
       </tr>`;
     }).join('');
 
@@ -102,35 +182,28 @@ async function loadCampaignList() {
       gotoFn: 'gotoCampaignPage', sizeFn: 'setCampaignPageSize', pageSizes: [5, 15, 30, 50],
     });
   } else {
-    tbody.innerHTML = '<tr><td colspan="9" class="empty-state"><p>暂无发送任务</p></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><p>暂无发送任务</p></td></tr>';
     document.getElementById('campaignPagination').innerHTML = renderPagination({
       total: 0, page: 1, pageSize: campaignPageSize, unit: '条任务',
       gotoFn: 'gotoCampaignPage', sizeFn: 'setCampaignPageSize',
     });
   }
+  updateCampaignToolbar();
   return campaigns;
 }
 
-/** v2.30 需求3：勾选本行 → 该行"删除"变红可用；取消勾选 → 恢复灰色不可用 */
-window.toggleCampaignDelete = function(cb) {
-  const id = parseInt(cb.dataset.cid, 10);
-  if (cb.checked) selectedCampaignIds.add(id); else selectedCampaignIds.delete(id);
-  const tr = cb.closest('tr');
-  const btn = tr ? tr.querySelector('.btn-del-campaign') : null;
-  if (!btn || btn.dataset.canDelete !== '1') return;
-  // 用新节点替换：Chromium 只翻转 disabled 属性时不会重算置灰那条 !important 规则，按钮会停在灰色
-  const next = document.createElement('button');
-  next.className = 'btn btn-sm btn-danger btn-del-campaign';
-  next.dataset.canDelete = '1';
-  next.setAttribute('onclick', `deleteCampaign(${id})`);
-  next.textContent = '删除';
-  if (cb.checked) {
-    next.title = '删除该发送任务';
-  } else {
-    next.title = '勾选本行后可删除该任务';
-    next.disabled = true;
-  }
-  btn.replaceWith(next);
+/**
+ * v2.42 需求6：单击任务行 = 选中该任务（工具栏随之刷新）+ 查看它的发送详情。
+ * 点行内控件（本页已无操作按钮，保留判断以防后续加控件）时不响应。
+ */
+window.rowSelectCampaign = function(event, id) {
+  if (event && event.target.closest('button, a, select, input')) return;
+  selectedCampaignId = id;
+  document.querySelectorAll('#campaignList tr[data-cid]').forEach(tr => {
+    tr.classList.toggle('row-selected', parseInt(tr.dataset.cid, 10) === id);
+  });
+  updateCampaignToolbar();
+  viewCampaignDetail(id);
 };
 
 window.gotoCampaignPage = function(p) {
@@ -153,11 +226,12 @@ window.startCampaign = async function(id) {
   startPolling();
 };
 
+/** v2.42 需求6：工具栏"暂停"。即原行内"停止"，仍走 /{id}/cancel，只改文案不改行为 */
 window.stopCampaign = function(id) {
   Modal.show({
-    title: '确认停止',
-    content: '<p>确定要停止此发送任务吗？已发送的邮件不会受影响，未发送的邮件将保持待发送状态。</p>',
-    confirmText: '停止',
+    title: '确认暂停',
+    content: '<p>确定要暂停此发送任务吗？已发送的邮件不会受影响，未发送的邮件将保持待发送状态。</p>',
+    confirmText: '暂停',
     onConfirm: async () => {
       const r = await api.post(`/api/campaigns/${id}/cancel`);
       showToast(r.message, r.code === 0 ? 'success' : 'error');
@@ -205,7 +279,7 @@ window.deleteCampaign = function(id) {
     onConfirm: async () => {
       const r = await api.del(`/api/campaigns/${id}`);
       showToast(r.message, r.code === 0 ? 'success' : 'error');
-      if (r.code === 0) selectedCampaignIds.delete(id);
+      if (r.code === 0 && selectedCampaignId === id) selectedCampaignId = null;
       loadCampaignList();
     }
   });
@@ -268,12 +342,6 @@ window.setDetailStatusFilter = function(s) {
   attCustomerEmail = '';
   attLogInfo = null;
   loadLogPage(currentDetailCampaignId, { keepScroll: true });
-};
-
-/** 整行点击查看该任务详情；点击行内操作按钮（发送/停止等）时不触发 */
-window.rowViewCampaignDetail = function(event, id) {
-  if (event && event.target.closest('button, a, select, input')) return;
-  viewCampaignDetail(id);
 };
 
 window.gotoCampaignLogPage = function(p) {
@@ -340,14 +408,14 @@ async function findCampaignById(id) {
 
 /**
  * v2.38 需求3.1：撤掉 v2.35"点客户名称弹编辑窗"的链接，客户名称回到纯文本；
- * 编辑入口改为整行双击 → "客户详情"窗口（见 rowShowLogCustomer）。
+ * 编辑入口改为整行双击 → "编辑客户"窗口（见 rowShowLogCustomer）。
  */
 function logCustomerNameCell(l) {
   return escHtml(l.customer_name) || '-';
 }
 
 /**
- * v2.38 需求3.1：双击发送记录整行打开该客户的"客户详情"（只读 → 编辑 → 保存）。
+ * v2.38 需求3.1 引入、v2.42 需求3 改为直接编辑：双击发送记录整行打开"编辑客户"窗口。
  * 必须先取消待执行的单击筛选，否则一次双击会连带把"发送详情"筛成该邮箱。
  */
 window.rowShowLogCustomer = function(event) {
@@ -423,7 +491,7 @@ async function loadLogPage(campaignId, opts, campaign) {
               const activeRow = attCustomerId && attCustomerId === l.customer_id;
               // v2.33 需求3：重试后才成功的记录文案是结论而非报错，用成功色显示
               const errColor = l.status === 'failed' ? 'var(--danger)' : 'var(--success)';
-              return `<tr class="clickable-row" data-cust="${l.customer_id}" data-custno="${escHtml(l.customer_no)}" data-email="${escHtml(l.customer_email)}" data-log-status="${escHtml(l.status)}" data-log-sent-at="${escHtml(sentAt)}" data-log-error="${escHtml(l.error_message)}"${activeRow ? ' style="background:#EFF6FF"' : ''} title="${countHint}；双击可打开该客户的详情" onclick="rowFilterSendDetail(event)" ondblclick="rowShowLogCustomer(event)"><td>${escHtml(l.customer_no) || '-'}</td><td>${logCustomerNameCell(l)}</td><td>${escHtml(l.customer_email) || '-'}</td><td><strong>${countText}</strong></td><td>${logStatus}</td><td style="font-size:12px;color:${errColor}">${escHtml(l.error_message) || '-'}</td><td style="font-size:13px">${sentAt}</td></tr>`;
+              return `<tr class="clickable-row" data-cust="${l.customer_id}" data-custno="${escHtml(l.customer_no)}" data-email="${escHtml(l.customer_email)}" data-log-status="${escHtml(l.status)}" data-log-sent-at="${escHtml(sentAt)}" data-log-error="${escHtml(l.error_message)}"${activeRow ? ' style="background:#EFF6FF"' : ''} title="${countHint}；双击编辑该客户信息" onclick="rowFilterSendDetail(event)" ondblclick="rowShowLogCustomer(event)"><td>${escHtml(l.customer_no) || '-'}</td><td>${logCustomerNameCell(l)}</td><td>${escHtml(l.customer_email) || '-'}</td><td><strong>${countText}</strong></td><td>${logStatus}</td><td style="font-size:12px;color:${errColor}">${escHtml(l.error_message) || '-'}</td><td style="font-size:13px">${sentAt}</td></tr>`;
             }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary)">暂无记录</td></tr>'}
           </tbody>
         </table>
@@ -553,6 +621,26 @@ async function bindCampaignsEvents() {
   if (campaigns.some(c => c.is_running)) startPolling();
 
   document.getElementById('btnCreateCampaign').onclick = () => openCampaignForm(null);
+
+  // v2.42 需求6：工具栏按钮作用于当前选中的那一条任务。
+  // 点击时按最新行数据复核一次可用条件（列表每 3 秒轮询刷新，按钮状态可能已经过期）
+  const runOnSelected = (key, fn) => {
+    const c = requireSelectedCampaign();
+    if (!c) return;
+    const f = campaignFlags(c);
+    if (!f[key]) {
+      showToast(campaignButtonHint(key, c, f), 'error');
+      updateCampaignToolbar();
+      return;
+    }
+    fn(c.id);
+  };
+  document.getElementById('btnCampStart').onclick = () => runOnSelected('canStart', startCampaign);
+  document.getElementById('btnCampPause').onclick = () => runOnSelected('canPause', stopCampaign);
+  document.getElementById('btnCampResume').onclick = () => runOnSelected('canResume', resumeCampaign);
+  document.getElementById('btnCampResendAll').onclick = () => runOnSelected('canResendAll', resendAllCampaign);
+  document.getElementById('btnCampEdit').onclick = () => runOnSelected('canEdit', editCampaign);
+  document.getElementById('btnCampDelete').onclick = () => runOnSelected('canDelete', deleteCampaign);
 }
 
 /* ===========================================================================

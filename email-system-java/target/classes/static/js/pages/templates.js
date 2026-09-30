@@ -4,6 +4,16 @@ function TemplatesPage() {
       <h1>邮件模板</h1>
       <button class="btn btn-primary" id="btnAddTemplate">+ 创建模板</button>
     </div>
+    <!-- v2.42 需求4/5：模板操作从每张卡片的行内按钮收敛到一条工具栏（形态同客户管理的 .customers-bar），
+         单击选中某条模板后，这些按钮才对那条记录生效 -->
+    <div class="search-bar templates-bar">
+      <span class="bar-hint" id="tplBarHint">单击下方模板卡片即可选中</span>
+      <button class="btn btn-sm btn-secondary" id="btnTplPreview" disabled>预览</button>
+      <button class="btn btn-sm btn-secondary" id="btnTplEdit" disabled>编辑</button>
+      <button class="btn btn-sm btn-secondary" id="btnTplDuplicate" disabled>复制</button>
+      <button class="btn btn-sm btn-secondary" id="btnTplTestSend" disabled>测试发送</button>
+      <button class="btn btn-sm btn-danger" id="btnTplDelete" disabled>删除</button>
+    </div>
     <div id="templateList"></div>
     <div class="card" style="margin-top:20px">
       <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:16px">
@@ -26,10 +36,16 @@ function clampPage(page, total, pageSize) {
   return page > totalPages ? totalPages : Math.max(1, page);
 }
 
+/* v2.42 需求4：当前选中的模板；模板列表是全量数组、分页只切片，所以翻页不会丢选中 */
+let selectedTemplateId = null;
+let templateRows = [];
+
 async function loadTemplateList() {
   const res = await api.get('/api/templates');
   const container = document.getElementById('templateList');
   const data = res.code === 0 ? res.data : [];
+  templateRows = data;
+  if (!data.some(t => t.id === selectedTemplateId)) selectedTemplateId = null;
   templatePage = clampPage(templatePage, data.length, templatePageSize);
   const pageItems = data.slice((templatePage - 1) * templatePageSize, templatePage * templatePageSize);
   const pagBar = data.length > templatePageSize ? `
@@ -42,7 +58,7 @@ async function loadTemplateList() {
       let vars = [];
       try { vars = JSON.parse(t.variables || '[]'); } catch(e) {}
       const fmtFull = v => v ? String(v).replace('T', ' ').substring(0, 19) : '-';
-      return `<div class="card template-card">
+      return `<div class="card template-card${t.id === selectedTemplateId ? ' selected' : ''}" data-tid="${t.id}" title="单击选中该模板，再用上方工具栏操作" onclick="rowSelectTemplate(event, ${t.id})">
         <div class="template-card-info">
           <div class="template-card-row">
             <h3 class="template-card-name">${t.name}</h3>
@@ -54,17 +70,12 @@ async function loadTemplateList() {
           <div class="template-card-subject" title="主题: ${t.subject}">主题: ${t.subject}</div>
           <div class="template-card-vars">变量: ${vars.length > 0 ? vars.map(v => `<span class="badge badge-info" style="margin-right:4px">\${${v}}</span>`).join('') : '<span style="color:#aaa">无</span>'}</div>
         </div>
-        <div class="toolbar">
-          <button class="btn btn-sm btn-secondary" onclick="previewTemplate(${t.id})">预览</button>
-          <button class="btn btn-sm btn-secondary" onclick="editTemplate(${t.id})">编辑</button>
-          <button class="btn btn-sm btn-secondary" onclick="duplicateTemplate(${t.id})">复制</button>
-          <button class="btn btn-sm btn-danger" onclick="deleteTemplate(${t.id})">删除</button>
-        </div>
       </div>`;
     }).join('') + pagBar;
   } else {
     container.innerHTML = '<div class="empty-state"><p>暂无邮件模板，点击上方按钮创建</p></div>';
   }
+  updateTemplateToolbar();
 }
 
 window.gotoTemplatePage = function(p) {
@@ -77,6 +88,51 @@ window.setTemplatePageSize = function(s) {
   templatePage = 1;
   loadTemplateList();
 };
+
+/**
+ * v2.42 需求4：单击卡片选中某条模板（单选，无复选框）。
+ * 卡片本身没有其它点击行为，所以不需要 stopPropagation；但重新点击同一张卡片保持选中，
+ * 避免"想再点一次确认选中"反而清空选择。
+ */
+window.rowSelectTemplate = function(event, id) {
+  selectedTemplateId = id;
+  document.querySelectorAll('.template-card').forEach(card => {
+    card.classList.toggle('selected', parseInt(card.dataset.tid, 10) === id);
+  });
+  updateTemplateToolbar();
+};
+
+function findTemplateById(id) {
+  return templateRows.find(t => t.id === id) || null;
+}
+
+/** 工具栏状态：未选中模板时全部置灰，选中后启用并显示模板名 */
+function updateTemplateToolbar() {
+  const t = selectedTemplateId != null ? findTemplateById(selectedTemplateId) : null;
+  const buttons = ['btnTplPreview', 'btnTplEdit', 'btnTplDuplicate', 'btnTplTestSend', 'btnTplDelete'];
+  buttons.forEach(bid => {
+    const el = document.getElementById(bid);
+    if (el) el.disabled = !t;
+  });
+  const hint = document.getElementById('tplBarHint');
+  if (!hint) return;
+  if (t) {
+    hint.textContent = `已选中：${t.name}`;
+    hint.title = `已选中模板「${t.name}」，工具栏按钮将作用于该模板`;
+  } else {
+    hint.textContent = '单击下方模板卡片即可选中';
+    hint.title = '';
+  }
+}
+
+/** 当前选中模板的 id；未选中时提示并返回 null，供各按钮回调复用 */
+function requireSelectedTemplateId() {
+  if (selectedTemplateId == null) {
+    showToast('请先单击选中一个模板', 'error');
+    return null;
+  }
+  return selectedTemplateId;
+}
 
 async function loadVariableList() {
   const res = await api.get('/api/variables');
@@ -703,6 +759,28 @@ async function bindTemplatesEvents() {
   await loadVariableList();
   document.getElementById('btnAddTemplate').onclick = () => openTemplateEditor();
   document.getElementById('btnAddVariable').onclick = () => openVariableEditor();
+
+  // v2.42 需求4/5：工具栏按钮作用于当前选中的那一条模板
+  document.getElementById('btnTplPreview').onclick = () => {
+    const id = requireSelectedTemplateId();
+    if (id != null) window.previewTemplate(id);
+  };
+  document.getElementById('btnTplEdit').onclick = () => {
+    const id = requireSelectedTemplateId();
+    if (id != null) window.editTemplate(id);
+  };
+  document.getElementById('btnTplDuplicate').onclick = () => {
+    const id = requireSelectedTemplateId();
+    if (id != null) window.duplicateTemplate(id);
+  };
+  document.getElementById('btnTplTestSend').onclick = () => {
+    const id = requireSelectedTemplateId();
+    if (id != null) window.testTemplate(id);
+  };
+  document.getElementById('btnTplDelete').onclick = () => {
+    const id = requireSelectedTemplateId();
+    if (id != null) window.deleteTemplate(id);
+  };
 }
 
 function openTemplateEditor(t = {}, editId = null) {
@@ -793,6 +871,141 @@ window.deleteTemplate = function(id) {
       loadTemplateList();
     }
   });
+};
+
+/* ---------- v2.42 需求5：测试发送 ---------- */
+
+// 弹窗内「可选客户」列表（当前搜索页）与已选客户，用于把收件人邮箱带进发送请求
+let testSendCustomers = [];
+let testSendCustomer = null;
+
+function testSendHTML(t, smtpList) {
+  return `
+    <p style="margin-bottom:14px;font-size:13px;color:var(--text-secondary)">
+      模板「${escHtml(t.name)}」测试发送：选择一个 SMTP 配置和一个客户，系统按该客户的信息渲染 \${cust_*} 变量，
+      并把这一封邮件发送到该客户的邮箱。
+    </p>
+    <div class="form-group form-group-inline">
+      <label>SMTP 配置</label>
+      <select class="form-input" id="tplTestSmtp">
+        ${smtpList.map(s => `<option value="${s.id}">${escHtml(s.name)} - ${escHtml(s.host || '')}:${s.port || ''}</option>`).join('')}
+      </select>
+    </div>
+    <div class="form-group form-group-inline">
+      <label>客户搜索</label>
+      <div style="display:flex;gap:8px;width:100%">
+        <input class="form-input" id="tplTestKw" placeholder="按姓名 / 邮箱 / 公司模糊搜索（留空看前 100 个）">
+        <button class="btn btn-sm btn-secondary" id="tplTestSearch" type="button">查询</button>
+      </div>
+    </div>
+    <div class="form-group form-group-inline">
+      <label>收件客户</label>
+      <select class="form-input" id="tplTestCust"></select>
+    </div>
+    <div class="form-group form-group-inline">
+      <label>收件人</label>
+      <span id="tplTestTo" style="font-size:13px;word-break:break-all">请先选择客户</span>
+    </div>
+    <p style="font-size:12px;color:var(--text-secondary)">
+      只向所选客户本人的邮箱发 1 封测试邮件，不产生发送记录、不影响任何发送任务。仅"有效"状态的客户可被选中。
+    </p>
+  `;
+}
+
+/** 拉取候选客户（只取有效客户），并把列表渲染到收件客户下拉框 */
+async function loadTestSendCustomers(keyword) {
+  const sel = document.getElementById('tplTestCust');
+  const kw = (keyword || '').trim();
+  const res = await api.get(`/api/customers/active?name=${encodeURIComponent(kw)}&page=1&page_size=100`);
+  testSendCustomers = res.code === 0 ? (res.data.customers || []) : [];
+  if (!sel) return;
+  if (testSendCustomers.length === 0) {
+    sel.innerHTML = '<option value="">没有匹配的有效客户</option>';
+    testSendCustomer = null;
+    updateTestSendTo();
+    return;
+  }
+  sel.innerHTML = testSendCustomers.map(c => `<option value="${c.id}">${escHtml(c.name)} &lt;${escHtml(c.email)}&gt;</option>`).join('');
+  testSendCustomer = testSendCustomers[0];
+  updateTestSendTo();
+}
+
+function updateTestSendTo() {
+  const el = document.getElementById('tplTestTo');
+  if (el) el.textContent = testSendCustomer ? testSendCustomer.email : '请先选择客户';
+}
+
+/** 校验并渲染出待发邮件；失败时 toast 提示并返回 null */
+async function buildTestSendMail() {
+  if (!testSendCustomer) { showToast('请选择一个收件客户', 'error'); return null; }
+  if (!isValidEmail(testSendCustomer.email)) {
+    showToast(`该客户的邮箱无效：${testSendCustomer.email || '（空）'}`, 'error');
+    return null;
+  }
+  const t = selectedTemplateId != null ? findTemplateById(selectedTemplateId) : null;
+  if (!t) { showToast('模板不存在，请刷新后重试', 'error'); return null; }
+  const r = await api.post('/api/templates/preview', {
+    subject: t.subject,
+    body: t.body,
+    customer_id: testSendCustomer.id,
+  });
+  if (r.code !== 0) { showToast(r.message || '模板渲染失败', 'error'); return null; }
+  return { subject: r.data.subject, body: r.data.body };
+}
+
+window.testTemplate = async function(id) {
+  const res = await api.get('/api/templates');
+  const t = (res.code === 0 ? res.data : []).find(x => x.id === id);
+  if (!t) { showToast('模板不存在，请刷新后重试', 'error'); return; }
+
+  const smtpRes = await api.get('/api/smtp/configs');
+  const smtpList = smtpRes.code === 0 ? (smtpRes.data || []) : [];
+  if (smtpList.length === 0) {
+    showToast('还没有 SMTP 配置，请先在「SMTP 配置」页面添加', 'error');
+    return;
+  }
+
+  testSendCustomer = null;
+  testSendCustomers = [];
+
+  Modal.show({
+    title: '测试发送',
+    content: testSendHTML(t, smtpList),
+    confirmText: '发送测试邮件',
+    cancelText: '取消',
+    onConfirm: async () => {
+      const smtpConfigId = parseInt(document.getElementById('tplTestSmtp').value, 10);
+      if (!smtpConfigId) { showToast('请选择 SMTP 配置', 'error'); return true; }
+      const mail = await buildTestSendMail(smtpConfigId);
+      if (!mail) return true;
+      const r = await api.post('/api/smtp/test', {
+        smtp_config_id: smtpConfigId,
+        to_email: testSendCustomer.email,
+        subject: mail.subject,
+        body: mail.body,
+      });
+      if (r.code === 0) {
+        showToast(`已发送到 ${testSendCustomer.email}`, 'success');
+        return false;
+      }
+      showToast(r.message || '发送失败', 'error');
+      return true;   // 失败保留弹窗，便于改配置后重试
+    },
+  });
+
+  const custSel = document.getElementById('tplTestCust');
+  const searchBtn = document.getElementById('tplTestSearch');
+  const kwInput = document.getElementById('tplTestKw');
+  if (custSel) {
+    custSel.onchange = () => {
+      const cid = parseInt(custSel.value, 10);
+      testSendCustomer = testSendCustomers.find(c => c.id === cid) || null;
+      updateTestSendTo();
+    };
+  }
+  if (searchBtn) searchBtn.onclick = () => loadTestSendCustomers(kwInput ? kwInput.value : '');
+  if (kwInput) kwInput.onkeydown = (e) => { if (e.key === 'Enter') loadTestSendCustomers(kwInput.value); };
+  await loadTestSendCustomers('');
 };
 
 function variableEditorHTML(v = {}) {

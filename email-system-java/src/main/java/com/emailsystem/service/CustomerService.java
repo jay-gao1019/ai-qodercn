@@ -97,6 +97,30 @@ public class CustomerService {
     }
 
     /** 批量设置客户有效性 */
+    /**
+     * 把客户记录展开成模板变量表，键名与发送任务执行时的口径完全一致。
+     * 供 {@code CampaignExecutor} 与"模板预览/测试发送"共用，避免两处各写一份字段映射。
+     */
+    public static Map<String, String> toTemplateVars(Customer customer) {
+        Map<String, String> map = new java.util.LinkedHashMap<>();
+        map.put("cust_name", nullToEmpty(customer.getName()));
+        map.put("cust_email", nullToEmpty(customer.getEmail()));
+        map.put("cust_company", nullToEmpty(customer.getCompany()));
+        map.put("cust_phone", nullToEmpty(customer.getPhone()));
+        map.put("cust_country", nullToEmpty(customer.getCountry()));
+        map.put("cust_tags", nullToEmpty(customer.getTags()));
+        map.put("cust_notes", nullToEmpty(customer.getNotes()));
+        return map;
+    }
+
+    private static String nullToEmpty(String s) {
+        return s != null ? s : "";
+    }
+
+    public Customer getById(Long id) {
+        return customerMapper.selectById(id);
+    }
+
     public void batchUpdateStatus(List<Long> ids, String status) {
         if (ids == null || ids.isEmpty()) return;
         com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Customer> wrapper =

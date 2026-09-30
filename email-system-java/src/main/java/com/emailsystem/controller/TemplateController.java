@@ -4,7 +4,9 @@ import com.emailsystem.common.Result;
 import com.emailsystem.dto.request.TemplateCreateDTO;
 import com.emailsystem.dto.request.TemplateUpdateDTO;
 import com.emailsystem.dto.response.PreviewResultVO;
+import com.emailsystem.entity.Customer;
 import com.emailsystem.entity.Template;
+import com.emailsystem.service.CustomerService;
 import com.emailsystem.service.TemplateCrudService;
 import com.emailsystem.service.TemplateService;
 import com.emailsystem.service.VariableService;
@@ -23,6 +25,7 @@ public class TemplateController {
     private final TemplateCrudService templateCrudService;
     private final TemplateService templateService;
     private final VariableService variableService;
+    private final CustomerService customerService;
 
     @GetMapping("")
     public Result<List<Template>> list() {
@@ -63,6 +66,24 @@ public class TemplateController {
 
         Map<String, String> globalVars = variableService.getGlobalVarsMap();
         Map<String, String> mergedVars = new java.util.LinkedHashMap<>(globalVars);
+
+        // 传了 customer_id 就按那位客户的真实信息渲染（与发送任务的变量口径同源），供"模板测试发送"使用；
+        // 不传时行为与以往完全一致，仍用示例数据渲染。
+        Object rawCustomerId = body.get("customer_id");
+        if (rawCustomerId != null) {
+            long customerId;
+            try {
+                customerId = Long.parseLong(String.valueOf(rawCustomerId).trim());
+            } catch (NumberFormatException e) {
+                return Result.error("customer_id 必须是数字");
+            }
+            Customer customer = customerService.getById(customerId);
+            if (customer == null) {
+                return Result.error("客户不存在，无法按该客户渲染模板");
+            }
+            mergedVars.putAll(CustomerService.toTemplateVars(customer));
+        }
+
         mergedVars.putAll(customVars);
 
         Map<String, String> preview = templateService.previewTemplate(subject, templateBody, mergedVars);
