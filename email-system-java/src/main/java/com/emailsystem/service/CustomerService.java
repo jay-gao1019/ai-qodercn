@@ -59,13 +59,13 @@ public class CustomerService {
 
     /**
      * 分页查询有效客户，供发送任务"选择客户"列表使用。
-     * <p>姓名/邮箱/国家/标签为相互独立的模糊筛选条件，留空表示该条件不参与筛选。
+     * <p>search 是对姓名/邮箱/国家/标签四个值的"或"模糊匹配（合并搜索框，v2.43 需求5.3.1）；
+     * name 是只按姓名的模糊筛选（供"测试模板"的客户搜索使用），留空的条件不参与筛选。
      */
-    public Map<String, Object> listActivePaged(String name, String email, String country, String tags,
-                                               int page, int pageSize) {
+    public Map<String, Object> listActivePaged(String name, String search, int page, int pageSize) {
         Page<Customer> pageObj = new Page<>(page, pageSize);
         Page<Customer> result = customerMapper.selectPage(pageObj,
-                activeFilter(name, email, country, tags).orderByDesc(Customer::getId));
+                activeFilter(name, search).orderByDesc(Customer::getId));
 
         Map<String, Object> data = new java.util.LinkedHashMap<>();
         data.put("customers", result.getRecords());
@@ -76,8 +76,8 @@ public class CustomerService {
     }
 
     /** 同一筛选条件下命中的全部有效客户 ID（"全部选中筛选结果"使用，不受分页限制） */
-    public List<Long> listActiveIds(String name, String email, String country, String tags) {
-        return customerMapper.selectList(activeFilter(name, email, country, tags).select(Customer::getId))
+    public List<Long> listActiveIds(String name, String search) {
+        return customerMapper.selectList(activeFilter(name, search).select(Customer::getId))
                 .stream().map(Customer::getId).toList();
     }
 
@@ -85,21 +85,24 @@ public class CustomerService {
      * 构造"仅有效客户 + 可选模糊筛选"的查询条件。
      * <p>采用"非失效即有效"的判定，避免历史数据 status 为 NULL 时被漏掉。
      */
-    private LambdaQueryWrapper<Customer> activeFilter(String name, String email, String country, String tags) {
+    private LambdaQueryWrapper<Customer> activeFilter(String name, String search) {
         LambdaQueryWrapper<Customer> wrapper = new LambdaQueryWrapper<Customer>()
                 .and(w -> w.ne(Customer::getStatus, STATUS_INACTIVE)
                         .or().isNull(Customer::getStatus));
         if (name != null && !name.isBlank()) wrapper.like(Customer::getName, name.trim());
-        if (email != null && !email.isBlank()) wrapper.like(Customer::getEmail, email.trim());
-        if (country != null && !country.isBlank()) wrapper.like(Customer::getCountry, country.trim());
-        if (tags != null && !tags.isBlank()) wrapper.like(Customer::getTags, tags.trim());
+        if (search != null && !search.isBlank()) {
+            String kw = search.trim();
+            wrapper.and(w -> w.like(Customer::getName, kw)
+                    .or().like(Customer::getEmail, kw)
+                    .or().like(Customer::getCountry, kw)
+                    .or().like(Customer::getTags, kw));
+        }
         return wrapper;
     }
 
-    /** 批量设置客户有效性 */
     /**
      * 把客户记录展开成模板变量表，键名与发送任务执行时的口径完全一致。
-     * 供 {@code CampaignExecutor} 与"模板预览/测试发送"共用，避免两处各写一份字段映射。
+     * 供 {@code CampaignExecutor} 与"模板预览/测试模板"共用，避免两处各写一份字段映射。
      */
     public static Map<String, String> toTemplateVars(Customer customer) {
         Map<String, String> map = new java.util.LinkedHashMap<>();

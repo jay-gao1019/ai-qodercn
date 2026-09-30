@@ -50,8 +50,11 @@ public class CampaignController {
     }
 
     /**
-     * v2.42 需求6：编辑任务。只要任务不在发送中即可编辑名称、模板、SMTP、发送间隔、发送方式与收件人列表；
-     * 已发出（sent/failed）的收件人会强制保留，以保证仪表盘与客户/模板统计口径不被抹掉。
+     * v2.45 需求1.2：编辑任务。只要任务不在发送中即可编辑，可改的是发送参数——模板、SMTP 配置、
+     * 发送方式与发送间隔；任务名称与收件客户列表保持不变（请求体里的 name / customer_ids 一律忽略），
+     * 因此已发出过邮件的任务也允许编辑，历史留痕与统计口径不受影响。
+     * <p>编辑立即生效：执行器每次运行都按 campaign_id 重新读取模板/SMTP/间隔，
+     * 所以"继续发送""全部重发"用的就是编辑后的配置（需求1.3）。
      */
     @PutMapping("/{id}/edit")
     public Result<Map<String, Object>> edit(@PathVariable("id") Long campaignId,

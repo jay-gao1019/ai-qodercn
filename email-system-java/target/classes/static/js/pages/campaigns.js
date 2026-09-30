@@ -5,12 +5,14 @@ function CampaignsPage() {
       <button class="btn btn-primary" id="btnCreateCampaign">+ 创建任务</button>
     </div>
     <!-- v2.42 需求6：任务操作从每行的行内按钮收敛到一条工具栏（形态同客户管理的 .customers-bar），
-         单击选中某条任务后，这些按钮才对那条记录生效；"暂停"即原"停止"（走 /{id}/cancel） -->
+         单击选中某条任务后，这些按钮才对那条记录生效；"暂停"即原"停止"（走 /{id}/cancel）。
+         v2.43 需求5.1：工具栏不显示"已选中：任务名称"；需求5.2：按选中任务的状态直接置灰不可用按钮。
+         v2.45 需求1.1：原"发送"和"继续发送"两枚按钮合并成一枚 #btnCampStart，
+         选中的任务没执行过发送时显示"发送"（走 /{id}/start），发过且成功率不为 100% 时显示"继续发送"（走 /{id}/resume） -->
     <div class="search-bar campaigns-bar">
       <span class="bar-hint" id="campBarHint">单击下方任务行即可选中</span>
       <button class="btn btn-sm btn-secondary" id="btnCampStart" disabled>发送</button>
       <button class="btn btn-sm btn-secondary" id="btnCampPause" disabled>暂停</button>
-      <button class="btn btn-sm btn-secondary" id="btnCampResume" disabled>继续发送</button>
       <button class="btn btn-sm btn-secondary" id="btnCampResendAll" disabled>全部重发</button>
       <button class="btn btn-sm btn-secondary" id="btnCampEdit" disabled>编辑</button>
       <button class="btn btn-sm btn-danger" id="btnCampDelete" disabled>删除</button>
@@ -55,51 +57,61 @@ const runTypeText = {
 };
 
 /**
- * v2.42 需求6：工具栏六个按钮各自的可用条件。判定口径与 v2.41 行内按钮完全一致，
+ * v2.42 需求6：工具栏按钮各自的可用条件。判定口径与 v2.41 行内按钮一致，
  * 只是从"按状态显示/隐藏按钮"改成"始终显示、不可用时置灰并在 title 说明原因"。
+ * <p>v2.45 需求1.1：原"发送""继续发送"合并成一枚按钮，sendFresh 决定它显示成哪一种——
+ * 新建且从未执行过发送 → "发送"（走 /{id}/start）；已经跑过、成功率不为 100% → "继续发送"（走 /{id}/resume）。
+ * <p>v2.45 需求1.2：编辑不再要求"一封都没发出去"，只要不在发送中即可。
  */
 function campaignFlags(c) {
   const display = c.display_status || c.status;
   const hasHistory = c.total > 0;
   const everSent = (c.sent + c.failed) > 0;
-  const unfinished = c.total - c.sent;
+  const notRunning = !c.is_running && c.status !== 'running';
+  // "新建未执行过发送"：仍是待发送状态，且一条都没发出去（含成功与失败）
+  const sendFresh = display === 'pending' && !everSent;
   return {
-    canStart: display === 'pending',
+    sendFresh,
+    canSend: sendFresh && notRunning,
     canPause: !!c.is_running,
-    // v2.30 需求4：只有真正发出去过邮件（成功或失败）的任务才提供"继续发送"
-    canResume: hasHistory && everSent && !c.is_running && c.status !== 'running' && unfinished > 0,
-    canResendAll: hasHistory && !c.is_running && (c.status === 'completed' || c.status === 'cancelled'),
-    // v2.27：只有"新建后一封都没发出去"的任务可编辑；已发送过的任务保留留痕，不给编辑入口
-    canEdit: !c.is_running && !everSent && c.status !== 'completed',
+    // 成功率不为 100%（还有未成功的记录）才能继续发送；v2.30 需求4 的"发出去过才算"已并入 sendFresh 分支
+    canResume: !sendFresh && hasHistory && notRunning && c.total - c.sent > 0,
+    canResendAll: hasHistory && notRunning && (c.status === 'completed' || c.status === 'cancelled'),
+    canEdit: notRunning,
     // v2.30 需求2：新建（未发送）任务也可删除，只保留"发送中的任务不可删"这一限制
-    canDelete: !c.is_running && c.status !== 'running',
+    canDelete: notRunning,
   };
+}
+
+/** 合并后的发送按钮：置灰时说明为什么不能点，可用时说明这一次点下去会发生什么 */
+function campaignSendHint(c, f) {
+  if (f.canSend) return '该任务尚未执行过发送：立即向该任务的全部收件客户发送邮件';
+  if (f.canResume) return '重新发送任务中所有未成功的邮件（失败/待发送），已发送成功的不再重发';
+  if (!f.sendFresh && c.total > 0 && c.sent >= c.total) {
+    return '该任务已全部发送成功（成功率 100%），没有可继续发送的记录；如需整批再发一遍请用"全部重发"';
+  }
+  if (c.is_running || c.status === 'running') return '任务正在发送中，请先暂停后再发送';
+  if (f.sendFresh) return '该任务当前不是待发送状态，无法直接发送';
+  return '该任务没有可发送的收件客户';
 }
 
 /** 各按钮置灰时的原因说明（可用时的提示见 enabled 分支） */
 function campaignButtonHint(key, c, f) {
   if (f[key]) {
     return {
-      canStart: '立即向该任务的全部收件客户发送邮件',
       canPause: '暂停该任务：已发送的邮件不受影响，未发送的保持待发送',
-      canResume: '重新发送任务中所有未成功的邮件，已发送成功的不再重发',
       canResendAll: '重新发送给该任务中的全部客户，包括之前已发送成功的',
-      canEdit: '修改该任务的名称、模板、SMTP、发送方式与收件人（仅未发出过邮件的任务可编辑）',
+      canEdit: '修改该任务的模板、SMTP 配置与发送方式（任务名称与收件客户不可改，发送中的任务不可编辑）',
       canDelete: '删除该发送任务，相关发送记录一并删除',
     }[key];
   }
   switch (key) {
-    case 'canStart':
-      return '该任务已不是待发送状态，如需再次发送请用"继续发送"或"全部重发"';
     case 'canPause':
       return '任务当前没有在发送，无需暂停';
-    case 'canResume':
-      return '只有已发出过邮件、且仍有未成功记录的任务可以"继续发送"';
     case 'canResendAll':
       return '只有已完成或已停止的任务可以"全部重发"';
     case 'canEdit':
-      if (c.is_running || c.status === 'running') return '任务正在发送中，请先停止后再编辑';
-      return (c.sent + c.failed) > 0 ? '该任务已发送过邮件，不支持编辑' : '该任务已完成，不支持编辑';
+      return '任务正在发送中，请先暂停后再编辑';
     case 'canDelete':
       return '任务正在发送中，请先暂停后再删除';
     default:
@@ -108,40 +120,38 @@ function campaignButtonHint(key, c, f) {
 }
 
 const CAMPAIGN_BUTTONS = [
-  ['btnCampStart', 'canStart'],
   ['btnCampPause', 'canPause'],
-  ['btnCampResume', 'canResume'],
   ['btnCampResendAll', 'canResendAll'],
   ['btnCampEdit', 'canEdit'],
   ['btnCampDelete', 'canDelete'],
 ];
 
-/** 工具栏状态：未选中任务时全部置灰；选中后按该任务的状态逐个回答"能不能做" */
+/**
+ * 工具栏状态：未选中任务时全部置灰；选中后按该任务的状态把"不能做"的按钮直接置灰。
+ * v2.43 需求5.1：不再显示"已选中：任务名称"（选中行本身有底色高亮，工具栏文案保持静态）；
+ * v2.43 需求5.2：可用性由 disabled 表达，不再依赖点击后的 toast 提示，原因放在 title 里。
+ * v2.45 需求1.1：#btnCampStart 一枚按钮承担发送/继续发送两种形态，文案随之切换。
+ */
 function updateCampaignToolbar() {
-  const c = selectedCampaignId != null ? campaignRows.find(x => x.id === selectedCampaignId) : null;
+  const c = getSelectedCampaign();
   const f = c ? campaignFlags(c) : null;
   CAMPAIGN_BUTTONS.forEach(([bid, key]) => {
     const el = document.getElementById(bid);
     if (!el) return;
-    el.disabled = !c;
+    el.disabled = !c || !f[key];
     el.title = c ? campaignButtonHint(key, c, f) : '请先单击选中一条任务';
   });
-  const hint = document.getElementById('campBarHint');
-  if (!hint) return;
-  if (c) {
-    hint.textContent = `已选中：${c.name}`;
-    hint.title = `已选中任务「${c.name}」，工具栏按钮将作用于该任务`;
-  } else {
-    hint.textContent = '单击下方任务行即可选中';
-    hint.title = '';
+  const sendBtn = document.getElementById('btnCampStart');
+  if (sendBtn) {
+    sendBtn.textContent = f && !f.sendFresh ? '继续发送' : '发送';
+    sendBtn.disabled = !c || !(f.canSend || f.canResume);
+    sendBtn.title = c ? campaignSendHint(c, f) : '请先单击选中一条任务';
   }
 }
 
-/** 当前选中任务；未选中时提示并返回 null，供各按钮回调复用 */
-function requireSelectedCampaign() {
-  const c = selectedCampaignId != null ? campaignRows.find(x => x.id === selectedCampaignId) : null;
-  if (!c) showToast('请先单击选中一条任务', 'error');
-  return c;
+/** 当前选中的任务；列表是服务端分页，翻页后选中项不在本页时为空 */
+function getSelectedCampaign() {
+  return selectedCampaignId != null ? campaignRows.find(x => x.id === selectedCampaignId) : null;
 }
 
 async function loadCampaignList() {
@@ -622,25 +632,24 @@ async function bindCampaignsEvents() {
 
   document.getElementById('btnCreateCampaign').onclick = () => openCampaignForm(null);
 
-  // v2.42 需求6：工具栏按钮作用于当前选中的那一条任务。
-  // 点击时按最新行数据复核一次可用条件（列表每 3 秒轮询刷新，按钮状态可能已经过期）
-  const runOnSelected = (key, fn) => {
-    const c = requireSelectedCampaign();
+  // v2.43 需求5.2：不可用的按钮已经按选中任务的状态置灰，点不到也就不需要再点击时 toast 提示；
+  // 列表每 3 秒轮询刷新会重算工具栏，状态变化时灰/可用随之变化
+  const runOnSelected = (fn) => {
+    const c = getSelectedCampaign();
+    if (c) fn(c.id);
+  };
+  // v2.45 需求1.1：一枚按钮两种形态——没执行过发送走 /start，发过且成功率不为 100% 走 /resume
+  document.getElementById('btnCampStart').onclick = () => {
+    const c = getSelectedCampaign();
     if (!c) return;
     const f = campaignFlags(c);
-    if (!f[key]) {
-      showToast(campaignButtonHint(key, c, f), 'error');
-      updateCampaignToolbar();
-      return;
-    }
-    fn(c.id);
+    if (f.sendFresh) startCampaign(c.id);
+    else if (f.canResume) resumeCampaign(c.id);
   };
-  document.getElementById('btnCampStart').onclick = () => runOnSelected('canStart', startCampaign);
-  document.getElementById('btnCampPause').onclick = () => runOnSelected('canPause', stopCampaign);
-  document.getElementById('btnCampResume').onclick = () => runOnSelected('canResume', resumeCampaign);
-  document.getElementById('btnCampResendAll').onclick = () => runOnSelected('canResendAll', resendAllCampaign);
-  document.getElementById('btnCampEdit').onclick = () => runOnSelected('canEdit', editCampaign);
-  document.getElementById('btnCampDelete').onclick = () => runOnSelected('canDelete', deleteCampaign);
+  document.getElementById('btnCampPause').onclick = () => runOnSelected(stopCampaign);
+  document.getElementById('btnCampResendAll').onclick = () => runOnSelected(resendAllCampaign);
+  document.getElementById('btnCampEdit').onclick = () => runOnSelected(editCampaign);
+  document.getElementById('btnCampDelete').onclick = () => runOnSelected(deleteCampaign);
 }
 
 /* ===========================================================================
@@ -650,6 +659,7 @@ async function bindCampaignsEvents() {
  *  - 发送间隔以"分钟"设置，立即发送与定时发送各自独立、与单选项同一行
  *  - 收件人改为"选择客户"按钮 + 分页选择列表
  *  - 定期自动发送已裁撤
+ *  - v2.45 需求1.2：编辑模式下任务名称与收件客户只读，可改的只有模板 / SMTP 配置 / 发送方式
  * =========================================================================== */
 
 /** 创建任务弹窗的收件人选择结果（跨分页累积，关闭创建弹窗时重置） */
@@ -658,28 +668,30 @@ const campCust = { selected: new Set(), filterDesc: '' };
 let cpk = null;
 /** 弹窗打开时的"确认按钮可用性"同步钩子（选择客户列表在叠加层里改动选择集时要回写底层按钮） */
 let campFormSync = null;
+/** v2.45 需求1.2：编辑模式下收件客户不可改，汇总文案要换成只读说法 */
+let campCustReadOnly = false;
 
 function resetCampCust() {
   campCust.selected = new Set();
   campCust.filterDesc = '';
+  campCustReadOnly = false;
   cpk = null;
   campFormSync = null;
 }
 
-/** 筛选条件的可读描述，空条件即"全部有效客户" */
+/** 筛选条件的可读描述，空条件即"全部有效客户"（v2.43 需求5.3.1：四个字段合并成一个关键字） */
 function cpkFilterDesc(filters) {
-  const parts = [];
-  if (filters.name) parts.push(`姓名含“${filters.name}”`);
-  if (filters.email) parts.push(`邮箱含“${filters.email}”`);
-  if (filters.country) parts.push(`国家含“${filters.country}”`);
-  if (filters.tags) parts.push(`标签含“${filters.tags}”`);
-  return parts.length ? parts.join('、') : '全部有效客户';
+  return filters.search ? `姓名 / 邮箱 / 国家 / 标签含“${filters.search}”` : '全部有效客户';
 }
 
 function renderCampCustSummary() {
   const el = document.getElementById('campCustSummary');
   if (campFormSync) campFormSync();
   if (!el) return;
+  if (campCustReadOnly) {
+    el.innerHTML = `收件客户共 <b>${campCust.selected.size}</b> 位 · 编辑任务时不可修改`;
+    return;
+  }
   el.innerHTML = campCust.selected.size === 0
     ? '<span class="cust-summary-empty">尚未选择客户</span>'
     : `已选中 <b>${campCust.selected.size}</b> 位客户 · 使用到的筛选条件：${escHtml(campCust.filterDesc)}`;
@@ -687,7 +699,8 @@ function renderCampCustSummary() {
 
 /**
  * 创建 / 编辑发送任务。
- * @param campaign 传入任务对象即进入编辑模式（v2.27：只有"一封都没发出去"的任务可编辑）；为空即新建
+ * @param campaign 传入任务对象即进入编辑模式（v2.45 需求1.2：只要不在发送中即可编辑，
+ *                 任务名称与收件客户只读，可改模板 / SMTP 配置 / 发送方式）；为空即新建
  */
 async function openCampaignForm(campaign) {
   const editing = !!campaign;
@@ -711,8 +724,8 @@ async function openCampaignForm(campaign) {
   const scheduleType = editing ? (campaign.schedule_type === 'one-time' ? 'one-time' : 'manual') : 'manual';
   const scheduleDatetime = editing ? editDatetimeValue(campaign.schedule_config) : '';
   if (editing) {
+    campCustReadOnly = true;
     (campaign.recipientIds || []).forEach(id => campCust.selected.add(id));
-    campCust.filterDesc = '沿用该任务原有收件人';
   } else {
     // v2.29 需求 4：新建任务默认选中当前全部有效客户（可在"选择客户"列表里增减）
     (activeIdsRes.code === 0 ? activeIdsRes.data || [] : []).forEach(id => campCust.selected.add(id));
@@ -724,9 +737,9 @@ async function openCampaignForm(campaign) {
     large: true,
     content: `
       <div class="form-group">
-        <label>任务名称 <b class="required-mark">*</b></label>
-        <input class="form-input" id="campName" value="${escHtml(editing ? campaign.name : '')}" placeholder="如：9月开发信批量" autocomplete="off">
-        <div class="field-error" id="campNameError">任务名称为必填项</div>
+        <label>任务名称${editing ? '' : ' <b class="required-mark">*</b>'}</label>
+        <input class="form-input" id="campName" value="${escHtml(editing ? campaign.name : '')}" placeholder="如：9月开发信批量" autocomplete="off"${editing ? ' disabled' : ''}>
+        ${editing ? '' : '<div class="field-error" id="campNameError">任务名称为必填项</div>'}
       </div>
       <div class="form-row">
         <div class="form-group">
@@ -770,12 +783,12 @@ async function openCampaignForm(campaign) {
         </div>
       </div>
       <div class="form-group">
-        <label>选择客户 <b class="required-mark">*</b></label>
+        <label>选择客户${editing ? '' : ' <b class="required-mark">*</b>'}</label>
         <div class="cust-pick-row">
-          <button type="button" class="btn btn-sm btn-secondary" id="btnPickCustomers">👥 选择客户</button>
+          ${editing ? '' : '<button type="button" class="btn btn-sm btn-secondary" id="btnPickCustomers">👥 选择客户</button>'}
           <span class="cust-summary" id="campCustSummary"></span>
         </div>
-        <div class="field-error" id="campCustError">请至少选择 1 位收件客户</div>
+        ${editing ? '' : '<div class="field-error" id="campCustError">请至少选择 1 位收件客户</div>'}
       </div>
     `,
     confirmText: editing ? '保存修改' : '创建任务',
@@ -822,6 +835,8 @@ async function openCampaignForm(campaign) {
       if (r.code !== 0) return true;
       resetCampCust();
       loadCampaignList();
+      // 需求1.2"编辑后的任务内容立即生效"：已打开的详情面板同步换成新的模板与发送参数
+      if (editing) refreshOpenDetail();
     },
   });
 
@@ -830,12 +845,13 @@ async function openCampaignForm(campaign) {
   const nameError = root.querySelector('#campNameError');
   const custError = root.querySelector('#campCustError');
   // v2.29 需求3：任务名称非空（全空格也算空）且至少选中 1 位收件客户，"创建任务"才可用
+  // v2.45 需求1.2：编辑态两项都只读且必然有值，相应校验提示也不再渲染
   const syncConfirmState = () => {
     const nameEmpty = !nameInput.value.trim();
     const noCustomer = campCust.selected.size === 0;
     confirmBtn.disabled = nameEmpty || noCustomer;
-    nameError.style.display = nameEmpty && nameInput.value.length > 0 ? 'block' : 'none';
-    custError.style.display = noCustomer ? 'block' : 'none';
+    if (nameError) nameError.style.display = nameEmpty && nameInput.value.length > 0 ? 'block' : 'none';
+    if (custError) custError.style.display = noCustomer ? 'block' : 'none';
   };
   campFormSync = syncConfirmState;
   nameInput.oninput = syncConfirmState;
@@ -857,8 +873,8 @@ async function openCampaignForm(campaign) {
     try { datetimeInput.showPicker(); } catch (e) { datetimeInput.focus(); }
   };
 
-  root.querySelector('#btnPickCustomers').onclick = openCustomerPicker;
-  renderCampCustSummary();
+  const pickBtn = root.querySelector('#btnPickCustomers');
+  if (pickBtn) pickBtn.onclick = openCustomerPicker;
 }
 
 /** schedule_config 里的 "yyyy-MM-dd HH:mm:ss" 转成 datetime-local 需要的 "yyyy-MM-ddTHH:mm" */
@@ -875,14 +891,14 @@ function editDatetimeValue(scheduleConfigJson) {
 }
 
 /**
- * v2.27：编辑任务入口。只有从未发出过邮件的任务才允许编辑
- * （已发送过的任务必须保留发送留痕与快照，前端不给按钮、后端再拦一道）。
+ * v2.45 需求1.2：编辑任务入口。只要任务不在发送中就能编辑，已发出过邮件的也可以；
+ * 可改的是模板 / SMTP 配置 / 发送方式，任务名称与收件客户在弹窗里只读。
  */
 window.editCampaign = async function(id) {
   const campaign = await findCampaignById(id);
   if (!campaign) return;
-  if (campaign.sent > 0 || campaign.failed > 0) {
-    showToast('该任务已发送过邮件，不支持编辑', 'error');
+  if (campaign.is_running || campaign.status === 'running') {
+    showToast('任务正在发送中，请先暂停后再编辑', 'error');
     return;
   }
   const res = await api.get(`/api/campaigns/${id}/logs?page=1&page_size=${Math.max(1, campaign.total || 0)}`);
@@ -893,12 +909,10 @@ window.editCampaign = async function(id) {
 
 /* ---------------------------- 选择客户分页列表 ---------------------------- */
 
-function cpkQuery(filters) {
+/** v2.43 需求5.3.1：四个字段合并成一个关键字，后端按"姓名/邮箱/国家/标签"或匹配 */
+function cpkQuery() {
   const p = new URLSearchParams();
-  if (filters.name) p.set('name', filters.name);
-  if (filters.email) p.set('email', filters.email);
-  if (filters.country) p.set('country', filters.country);
-  if (filters.tags) p.set('tags', filters.tags);
+  if (cpk.filters.search) p.set('search', cpk.filters.search);
   return p.toString();
 }
 
@@ -912,7 +926,7 @@ function cpkBoxes() {
 }
 
 function openCustomerPicker() {
-  if (!cpk) cpk = { page: 1, pageSize: 10, total: 0, filters: { name: '', email: '', country: '', tags: '' } };
+  if (!cpk) cpk = { page: 1, pageSize: 10, total: 0, filters: { search: '' }, replaceOnCheck: false };
   const f = cpk.filters;
 
   cpk.box = Modal.show({
@@ -921,13 +935,10 @@ function openCustomerPicker() {
     stacked: true,
     confirmText: '确定',
     content: `
-      <div class="picker-filters">
-        <div class="form-group"><label for="cpkName">姓名</label><input class="form-input" id="cpkName" value="${escHtml(f.name)}" placeholder="按姓名筛选"></div>
-        <div class="form-group"><label for="cpkEmail">邮箱</label><input class="form-input" id="cpkEmail" value="${escHtml(f.email)}" placeholder="按邮箱筛选"></div>
-        <div class="form-group"><label for="cpkCountry">国家</label><input class="form-input" id="cpkCountry" value="${escHtml(f.country)}" placeholder="按国家筛选"></div>
-        <div class="form-group"><label for="cpkTags">标签</label><input class="form-input" id="cpkTags" value="${escHtml(f.tags)}" placeholder="按标签筛选"></div>
-      </div>
+      <!-- v2.43 需求5.3.1/5.3.2：关键字搜索框与查询/重置/全部选中/取消全部同在一行 -->
       <div class="picker-toolbar">
+        <input class="form-input cpk-keyword" id="cpkKw" value="${escHtml(f.search || '')}"
+               placeholder="搜索姓名 / 邮箱 / 国家 / 标签（回车即查）">
         <button type="button" class="btn btn-sm btn-primary" id="cpkSearch">查询</button>
         <button type="button" class="btn btn-sm btn-secondary" id="cpkReset">重置</button>
         <button type="button" class="btn btn-sm btn-secondary" id="cpkPickAll">全部选中筛选结果</button>
@@ -951,29 +962,23 @@ function openCustomerPicker() {
     },
   });
 
-  const readFilters = () => ({
-    name: cpkEl('cpkName').value.trim(),
-    email: cpkEl('cpkEmail').value.trim(),
-    country: cpkEl('cpkCountry').value.trim(),
-    tags: cpkEl('cpkTags').value.trim(),
-  });
-
   cpkEl('cpkSearch').onclick = () => {
-    cpk.filters = readFilters();
+    cpk.filters = { search: cpkEl('cpkKw').value.trim() };
     cpk.page = 1;
+    // v2.43 需求5.3.3：执行了搜索之后，第一次勾选搜索结果要用勾选结果替换原有选中集合
+    cpk.replaceOnCheck = !!cpk.filters.search;
     loadCpkPage();
   };
   cpkEl('cpkReset').onclick = () => {
-    ['cpkName', 'cpkEmail', 'cpkCountry', 'cpkTags'].forEach(id => { cpkEl(id).value = ''; });
-    cpk.filters = { name: '', email: '', country: '', tags: '' };
+    cpkEl('cpkKw').value = '';
+    cpk.filters = { search: '' };
+    cpk.replaceOnCheck = false;
     cpk.page = 1;
     loadCpkPage();
   };
-  ['cpkName', 'cpkEmail', 'cpkCountry', 'cpkTags'].forEach(id => {
-    cpkEl(id).onkeydown = (e) => {
-      if (e.key === 'Enter') cpkEl('cpkSearch').click();
-    };
-  });
+  cpkEl('cpkKw').onkeydown = (e) => {
+    if (e.key === 'Enter') cpkEl('cpkSearch').click();
+  };
 
   cpkEl('cpkPickAll').onclick = () => applyCpkMatchedSelection(true);
   cpkEl('cpkPickNone').onclick = () => applyCpkMatchedSelection(false);
@@ -988,7 +993,7 @@ function openCustomerPicker() {
 
 /** 选择 / 取消当前筛选条件下命中的全部有效客户（跨页，用后端返回的命中 ID 集合） */
 async function applyCpkMatchedSelection(select) {
-  const res = await api.get(`/api/customers/active/ids?${cpkQuery(cpk.filters)}`);
+  const res = await api.get(`/api/customers/active/ids?${cpkQuery()}`);
   if (res.code !== 0) { showToast('客户列表加载失败', 'error'); return; }
   const ids = res.data || [];
   if (ids.length === 0) { showToast('当前筛选条件没有命中的有效客户', 'error'); return; }
@@ -1001,7 +1006,7 @@ async function applyCpkMatchedSelection(select) {
 async function loadCpkPage() {
   const body = cpkEl('cpkBody');
   if (!body) return;
-  const res = await api.get(`/api/customers/active?${cpkQuery(cpk.filters)}&page=${cpk.page}&page_size=${cpk.pageSize}`);
+  const res = await api.get(`/api/customers/active?${cpkQuery()}&page=${cpk.page}&page_size=${cpk.pageSize}`);
   if (res.code !== 0) {
     body.innerHTML = `<tr><td colspan="6" style="text-align:center;color:var(--danger)">客户列表加载失败</td></tr>`;
     return;
@@ -1041,9 +1046,17 @@ async function loadCpkPage() {
   renderCpkSummary();
 }
 
-/** 把本页复选框状态同步进已选集合（其他页的选择保持不变） */
+/**
+ * 把本页复选框状态同步进已选集合（其他页的选择保持不变）。
+ * v2.43 需求5.3.3：执行过关键字搜索之后，第一次勾选搜索结果时先把原有集合清空，
+ * 让"勾选的客户"替换"原来已选中的客户"（新建任务默认全选全部有效客户，不替换就会越勾越多）。
+ */
 function syncCpkSelectionFromCheckboxes() {
   const boxes = cpkBoxes();
+  if (cpk.replaceOnCheck && boxes.some(cb => cb.checked)) {
+    campCust.selected.clear();
+    cpk.replaceOnCheck = false;
+  }
   boxes.forEach(cb => {
     const id = parseInt(cb.value, 10);
     if (cb.checked) campCust.selected.add(id);

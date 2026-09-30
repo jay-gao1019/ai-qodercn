@@ -56,19 +56,23 @@ function isValidEmail(email) {
   return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email);
 }
 
+/**
+ * "添加客户"表单，v2.45 需求2 起同时是"编辑客户"窗口的内容（两处样式必然一致）。
+ * 值一律 escHtml：编辑时回填的是库里已有的客户资料，含引号或尖括号会撑破 value 属性。
+ */
 function customerFormHTML(c = {}) {
   return `
     <div class="form-row">
-      <div class="form-group"><label>姓名 *</label><input class="form-input" id="cName" value="${c.name || ''}"></div>
-      <div class="form-group"><label>邮箱 *</label><input class="form-input" id="cEmail" type="email" value="${c.email || ''}" placeholder="example@domain.com"><div id="emailError" style="color:#e53e3e;font-size:12px;margin-top:4px;display:none">请输入有效的邮箱地址</div></div>
+      <div class="form-group"><label>姓名 *</label><input class="form-input" id="cName" value="${escHtml(c.name || '')}"></div>
+      <div class="form-group"><label>邮箱 *</label><input class="form-input" id="cEmail" type="email" value="${escHtml(c.email || '')}" placeholder="example@domain.com"><div id="emailError" style="color:#e53e3e;font-size:12px;margin-top:4px;display:none">请输入有效的邮箱地址</div></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>公司</label><input class="form-input" id="cCompany" value="${c.company || ''}"></div>
-      <div class="form-group"><label>电话</label><input class="form-input" id="cPhone" value="${c.phone || ''}"></div>
+      <div class="form-group"><label>公司</label><input class="form-input" id="cCompany" value="${escHtml(c.company || '')}"></div>
+      <div class="form-group"><label>电话</label><input class="form-input" id="cPhone" value="${escHtml(c.phone || '')}"></div>
     </div>
     <div class="form-row">
-      <div class="form-group"><label>国家</label><input class="form-input" id="cCountry" value="${c.country || ''}"></div>
-      <div class="form-group"><label>标签</label><input class="form-input" id="cTags" value="${c.tags || ''}" placeholder="多个标签用逗号分隔"></div>
+      <div class="form-group"><label>国家</label><input class="form-input" id="cCountry" value="${escHtml(c.country || '')}"></div>
+      <div class="form-group"><label>标签</label><input class="form-input" id="cTags" value="${escHtml(c.tags || '')}" placeholder="多个标签用逗号分隔"></div>
     </div>
     <div class="form-group">
       <label>客户有效性</label>
@@ -77,7 +81,7 @@ function customerFormHTML(c = {}) {
         <option value="inactive" ${c.status === 'inactive' ? 'selected' : ''}>失效（不会出现在发送任务客户列表）</option>
       </select>
     </div>
-    <div class="form-group"><label>备注</label><textarea class="form-textarea" id="cNotes">${c.notes || ''}</textarea></div>
+    <div class="form-group"><label>备注</label><textarea class="form-textarea" id="cNotes">${escHtml(c.notes || '')}</textarea></div>
   `;
 }
 
@@ -472,44 +476,10 @@ function refreshCustomerListIfOpen() {
 }
 
 /**
- * "编辑客户"窗口的表单（v2.42 需求1/2/3）：两列并排，除"备注"外标签与输入框同一行，
- * 两列的标签轨与值轨都左对齐；"备注"是跨整行的标签 + 多行文本域。
- * 客户号 / 创建时间 / 最后修改时间渲染成 .cd-value 纯文本，不进 readCustomerForm()，
- * 因此 PUT 请求体里根本没有这三个键——编号仍由后端按主键派生，时间戳仍由数据库维护。
- */
-function customerDetailHTML(c) {
-  const field = (label, control) => `<span class="cd-label">${label}</span>${control}`;
-  const req = '<span class="cd-req"> *</span>';
-  const input = (id, value, type = 'text') =>
-    `<input class="cd-input" id="${id}" type="${type}" value="${escHtml(value || '')}">`;
-  const text = (v) => `<span class="cd-value">${escHtml(v || '-')}</span>`;
-  return `<div class="customer-detail" id="customerDetailBox">
-    <div class="cd-col">
-      ${field('客户号', text(c.customer_no))}
-      ${field('公司', input('cCompany', c.company))}
-      ${field('电话', input('cPhone', c.phone))}
-      ${field('标签', input('cTags', c.tags))}
-      ${field('创建时间', text(fmtDateTime(c.created_at)))}
-      <span class="cd-label cd-span">备注</span>
-      <textarea class="cd-input cd-span" id="cNotes">${escHtml(c.notes || '')}</textarea>
-    </div>
-    <div class="cd-col">
-      ${field(`姓名${req}`, input('cName', c.name))}
-      ${field(`邮箱${req}`, input('cEmail', c.email, 'email')
-        + '<div class="cd-error cd-span" id="emailError">请输入有效的邮箱地址</div>')}
-      ${field('国家', input('cCountry', c.country))}
-      ${field('有效性', `<select class="cd-select" id="cStatus">
-          <option value="active" ${c.status !== 'inactive' ? 'selected' : ''}>有效</option>
-          <option value="inactive" ${c.status === 'inactive' ? 'selected' : ''}>失效</option>
-        </select>`)}
-      ${field('最后修改时间', text(fmtDateTime(c.updated_at)))}
-    </div>
-  </div>`;
-}
-
-/**
  * 打开"编辑客户"对话框。v2.42 需求1/3：客户管理整行双击、发送任务-发送记录整行双击
  * 两个入口都直接进入编辑态，且共用这一份实现与同一个窗口，所以两处样式必然一致。
+ * <p>v2.45 需求2：窗口内容就是"添加客户"那套表单（标签在上、输入框在下，两列并排），
+ * 不再显示创建时间 / 最后修改时间，客户号改放到标题"编辑客户"后面。
  * @param {number} id 客户 ID
  * @param {Function} [onSaved] 保存成功后的回调，供非客户管理页的调用方刷新自己的列表（v2.35 需求3.4 → v2.38 需求3.1）
  */
@@ -519,11 +489,10 @@ window.showCustomerDetail = async function(id, onSaved) {
   if (!c) { showToast('未找到该客户，可能已被删除', 'error'); return; }
 
   Modal.show({
-    title: '编辑客户',
-    content: customerDetailHTML(c),
+    title: `编辑客户 ${escHtml(c.customer_no || '')}`,
+    content: customerFormHTML(c),
     confirmText: '保存',
     cancelText: '取消',
-    narrow: true,
     onConfirm: async () => {
       const data = readCustomerForm();
       if (!validateCustomerForm(data)) return true;

@@ -1,30 +1,3 @@
-[INFO] Scanning for projects...
-[INFO] 
-[INFO] --------------------< com.emailsystem:email-system >--------------------
-[INFO] Building email-system 1.0.0
-[INFO]   from pom.xml
-[INFO] --------------------------------[ jar ]---------------------------------
-[INFO] 
-[INFO] >>> spring-boot:3.2.5:run (default-cli) > test-compile @ email-system >>>
-[INFO] 
-[INFO] --- resources:3.3.1:resources (default-resources) @ email-system ---
-[INFO] Copying 1 resource from src\main\resources to target\classes
-[INFO] Copying 14 resources from src\main\resources to target\classes
-[INFO] 
-[INFO] --- compiler:3.11.0:compile (default-compile) @ email-system ---
-[INFO] Nothing to compile - all classes are up to date
-[INFO] 
-[INFO] --- resources:3.3.1:testResources (default-testResources) @ email-system ---
-[INFO] skip non existing resourceDirectory D:\jay\外贸邮件系统\邮件系统2\email-system-java\src\test\resources
-[INFO] 
-[INFO] --- compiler:3.11.0:testCompile (default-testCompile) @ email-system ---
-[INFO] Nothing to compile - all classes are up to date
-[INFO] 
-[INFO] <<< spring-boot:3.2.5:run (default-cli) < test-compile @ email-system <<<
-[INFO] 
-[INFO] 
-[INFO] --- spring-boot:3.2.5:run (default-cli) @ email-system ---
-[INFO] Attaching agents: []
 Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
 
   .   ____          _            __ _ _
@@ -35,26 +8,25 @@ Standard Commons Logging discovery in action with spring-jcl: please remove comm
  =========|_|==============|___/=/_/_/_/
  :: Spring Boot ::                (v3.2.5)
 
-2026-09-30T12:20:05.081+08:00  INFO 32736 --- [           main] com.emailsystem.EmailSystemApplication   : Starting EmailSystemApplication using Java 18.0.2 with PID 32736 (D:\jay\外贸邮件系统\邮件系统2\email-system-java\target\classes started by mandy in D:\jay\外贸邮件系统\邮件系统2\email-system-java)
-2026-09-30T12:20:05.083+08:00  INFO 32736 --- [           main] com.emailsystem.EmailSystemApplication   : No active profile set, falling back to 1 default profile: "default"
-2026-09-30T12:20:06.379+08:00  INFO 32736 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8006 (http)
-2026-09-30T12:20:06.404+08:00  INFO 32736 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
-2026-09-30T12:20:06.404+08:00  INFO 32736 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.20]
-2026-09-30T12:20:06.498+08:00  INFO 32736 --- [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
-2026-09-30T12:20:06.499+08:00  INFO 32736 --- [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1365 ms
+2026-09-30T16:29:13.690+08:00  INFO 11124 --- [           main] com.emailsystem.EmailSystemApplication   : Starting EmailSystemApplication using Java 18.0.2 with PID 11124 (D:\jay\外贸邮件系统\邮件系统2\email-system-java\target\classes started by mandy in D:\jay\外贸邮件系统\邮件系统2\email-system-java)
+2026-09-30T16:29:13.693+08:00  INFO 11124 --- [           main] com.emailsystem.EmailSystemApplication   : No active profile set, falling back to 1 default profile: "default"
+2026-09-30T16:29:14.979+08:00  INFO 11124 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8006 (http)
+2026-09-30T16:29:14.993+08:00  INFO 11124 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-09-30T16:29:14.993+08:00  INFO 11124 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.20]
+2026-09-30T16:29:15.060+08:00  INFO 11124 --- [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-09-30T16:29:15.062+08:00  INFO 11124 --- [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1315 ms
 Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
-2026-09-30T12:20:06.619+08:00  INFO 32736 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
-2026-09-30T12:20:06.786+08:00  INFO 32736 --- [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@1d98daa0
-2026-09-30T12:20:06.788+08:00  INFO 32736 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-09-30T16:29:15.177+08:00  INFO 11124 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-09-30T16:29:15.338+08:00  INFO 11124 --- [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@28e0e464
+2026-09-30T16:29:15.340+08:00  INFO 11124 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
  _ _   |_  _ _|_. ___ _ |    _ 
 | | |\/|_)(_| | |_\  |_)||_|_\ 
      /               |         
                         3.5.7 
-2026-09-30T12:20:07.604+08:00  INFO 32736 --- [           main] o.s.b.a.w.s.WelcomePageHandlerMapping    : Adding welcome page: class path resource [static/index.html]
-2026-09-30T12:20:07.864+08:00  INFO 32736 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8006 (http) with context path ''
-2026-09-30T12:20:07.873+08:00  INFO 32736 --- [           main] com.emailsystem.EmailSystemApplication   : Started EmailSystemApplication in 3.249 seconds (process running for 3.649)
+2026-09-30T16:29:16.161+08:00  INFO 11124 --- [           main] o.s.b.a.w.s.WelcomePageHandlerMapping    : Adding welcome page: class path resource [static/index.html]
+2026-09-30T16:29:16.415+08:00  INFO 11124 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8006 (http) with context path ''
+2026-09-30T16:29:16.425+08:00  INFO 11124 --- [           main] com.emailsystem.EmailSystemApplication   : Started EmailSystemApplication in 3.147 seconds (process running for 3.512)
 Email System running at http://localhost:8000
-2026-09-30T12:20:54.933+08:00  INFO 32736 --- [nio-8006-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
-2026-09-30T12:20:54.933+08:00  INFO 32736 --- [nio-8006-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
-2026-09-30T12:20:54.934+08:00  INFO 32736 --- [nio-8006-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
-2026-09-30T12:24:23.851+08:00 ERROR 32736 --- [nio-8006-exec-1] com.emailsystem.service.EmailService     : [SMTP Error] SMTP 发送失败：Connection refused: no further information | host=127.0.0.1 port=1 ssl=false tls=false
+2026-09-30T16:30:34.778+08:00  INFO 11124 --- [nio-8006-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-09-30T16:30:34.778+08:00  INFO 11124 --- [nio-8006-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-09-30T16:30:34.779+08:00  INFO 11124 --- [nio-8006-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms

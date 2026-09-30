@@ -6,14 +6,13 @@ const Modal = {
    * @param {string}  confirmText  确认按钮文字
    * @param {string}  cancelText   取消按钮文字
    * @param {boolean} large        宽版（720px）
-   * @param {boolean} narrow       窄版（编辑客户窗口专用，比默认 560px 更窄，见 style.css 的 .modal-box.narrow）
    * @param {boolean} wide         大尺寸：占视口 80% 宽高，屏幕居中
    * @param {boolean} hideConfirm  隐藏确认按钮（纯查看类弹窗）
    * @param {boolean} stacked      以叠加层显示，盖在当前弹窗之上（如创建任务时打开"选择客户"列表）
    * @param {Function} onConfirm   点击确认
    * @param {Function} onCancel    点击取消
    */
-  show({ title, content, confirmText = '确认', cancelText = '取消', onConfirm, onCancel, large, narrow, wide, hideConfirm, stacked }) {
+  show({ title, content, confirmText = '确认', cancelText = '取消', onConfirm, onCancel, large, wide, hideConfirm, stacked }) {
     let root;
     if (stacked) {
       root = document.createElement('div');
@@ -26,7 +25,7 @@ const Modal = {
       root.innerHTML = '';
       if (stacked) root.remove();
     };
-    const sizeClass = wide ? 'wide' : (large ? 'large' : (narrow ? 'narrow' : ''));
+    const sizeClass = wide ? 'wide' : (large ? 'large' : '');
     // 叠加弹窗的按钮只带类名、不带 id：与底层弹窗共用同名 id 时，全局 getElementById 会命中底层弹窗的按钮
     const cls = stacked ? '-stack' : '';
     const openId = stacked ? '' : 'id="';

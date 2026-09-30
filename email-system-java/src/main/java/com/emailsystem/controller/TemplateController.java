@@ -67,7 +67,7 @@ public class TemplateController {
         Map<String, String> globalVars = variableService.getGlobalVarsMap();
         Map<String, String> mergedVars = new java.util.LinkedHashMap<>(globalVars);
 
-        // 传了 customer_id 就按那位客户的真实信息渲染（与发送任务的变量口径同源），供"模板测试发送"使用；
+        // 传了 customer_id 就按那位客户的真实信息渲染（与发送任务的变量口径同源），供"测试模板"窗口使用；
         // 不传时行为与以往完全一致，仍用示例数据渲染。
         Object rawCustomerId = body.get("customer_id");
         if (rawCustomerId != null) {

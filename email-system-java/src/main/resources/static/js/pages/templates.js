@@ -11,7 +11,7 @@ function TemplatesPage() {
       <button class="btn btn-sm btn-secondary" id="btnTplPreview" disabled>预览</button>
       <button class="btn btn-sm btn-secondary" id="btnTplEdit" disabled>编辑</button>
       <button class="btn btn-sm btn-secondary" id="btnTplDuplicate" disabled>复制</button>
-      <button class="btn btn-sm btn-secondary" id="btnTplTestSend" disabled>测试发送</button>
+      <button class="btn btn-sm btn-secondary" id="btnTplTestSend" disabled>测试模板</button>
       <button class="btn btn-sm btn-danger" id="btnTplDelete" disabled>删除</button>
     </div>
     <div id="templateList"></div>
@@ -873,7 +873,7 @@ window.deleteTemplate = function(id) {
   });
 };
 
-/* ---------- v2.42 需求5：测试发送 ---------- */
+/* ---------- v2.42 需求5：测试模板（v2.43 需求2/3/4 改名并调整弹窗内容） ---------- */
 
 // 弹窗内「可选客户」列表（当前搜索页）与已选客户，用于把收件人邮箱带进发送请求
 let testSendCustomers = [];
@@ -882,19 +882,19 @@ let testSendCustomer = null;
 function testSendHTML(t, smtpList) {
   return `
     <p style="margin-bottom:14px;font-size:13px;color:var(--text-secondary)">
-      模板「${escHtml(t.name)}」测试发送：选择一个 SMTP 配置和一个客户，系统按该客户的信息渲染 \${cust_*} 变量，
+      模板「${escHtml(t.name)}」测试：选择一个 SMTP 配置和一个客户，系统按该客户的信息渲染 \${cust_*} 变量，
       并把这一封邮件发送到该客户的邮箱。
     </p>
     <div class="form-group form-group-inline">
       <label>SMTP 配置</label>
       <select class="form-input" id="tplTestSmtp">
-        ${smtpList.map(s => `<option value="${s.id}">${escHtml(s.name)} - ${escHtml(s.host || '')}:${s.port || ''}</option>`).join('')}
+        ${smtpList.map(s => `<option value="${s.id}">${escHtml(s.name)}</option>`).join('')}
       </select>
     </div>
     <div class="form-group form-group-inline">
       <label>客户搜索</label>
       <div style="display:flex;gap:8px;width:100%">
-        <input class="form-input" id="tplTestKw" placeholder="按姓名 / 邮箱 / 公司模糊搜索（留空看前 100 个）">
+        <input class="form-input" id="tplTestKw" placeholder="按客户名称模糊搜索（留空看前 100 个）">
         <button class="btn btn-sm btn-secondary" id="tplTestSearch" type="button">查询</button>
       </div>
     </div>
@@ -969,7 +969,7 @@ window.testTemplate = async function(id) {
   testSendCustomers = [];
 
   Modal.show({
-    title: '测试发送',
+    title: '测试模板',
     content: testSendHTML(t, smtpList),
     confirmText: '发送测试邮件',
     cancelText: '取消',

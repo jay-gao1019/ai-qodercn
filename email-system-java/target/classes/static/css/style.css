@@ -280,8 +280,6 @@ tr:hover td { background: #F8FAFC; }
   box-shadow: 0 10px 40px rgba(0,0,0,0.18);
 }
 .modal-box.large { width: 720px; }
-/* v2.42 需求3：编辑客户窗口的窄版尺寸（默认 560px 再收窄，实测按"两列 + 标签值同行不折行"取最窄可用值） */
-.modal-box.narrow { width: 500px; }
 
 /* 大尺寸弹窗：宽高均为视口的 80%，并由 overlay 的 flex 实现上下左右居中 */
 .modal-box.wide {
@@ -938,21 +936,8 @@ tr.clickable-row:hover td { background: #EFF6FF; }
 .cust-summary b { color: var(--primary); font-size: 15px; }
 .cust-summary-empty { font-size: 13px; color: #94A3B8; }
 
-/* 选择客户列表：姓名/邮箱/国家/标签四个筛选条件——v2.28 需求3 四个"标签+输入框"排在同一行（1×4） */
-.picker-filters {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 10px 16px;
-  margin-bottom: 12px;
-}
-.picker-filters .form-group { display: flex; align-items: center; gap: 6px; margin-bottom: 0; min-width: 0; }
-.picker-filters .form-group > label {
-  flex: 0 0 auto; font-size: 13px; font-weight: 500;
-  color: var(--text-secondary); margin-bottom: 0; white-space: nowrap;
-}
-.picker-filters .form-input { flex: 1 1 auto; width: auto; min-width: 0; padding: 6px 8px; font-size: 13px; }
-
-/* 批量选择工具栏：查询/重置/全部选中/取消选中同一行 + 已选统计（v2.27 需求7） */
+/* 选择客户列表：v2.43 需求5.3.1/5.3.2 把姓名/邮箱/国家/标签四个输入框合并成一个关键字框，
+   并与查询/重置/全部选中/取消全部同放在 .picker-toolbar 这一行里 */
 .picker-toolbar {
   display: flex;
   align-items: center;
@@ -960,6 +945,7 @@ tr.clickable-row:hover td { background: #EFF6FF; }
   flex-wrap: wrap;
   margin-bottom: 10px;
 }
+.picker-toolbar .cpk-keyword { flex: 1 1 200px; min-width: 160px; padding: 6px 8px; font-size: 13px; }
 .picker-toolbar .cust-summary { margin-left: auto; }
 
 /* 客户行距压缩（需求 2.5："记录显示间距稍微紧凑一点"） */
@@ -1048,35 +1034,6 @@ tr.clickable-row:hover td { background: #EFF6FF; }
 .dash-sent-card .welcome-card { padding: 22px 24px; }
 .dash-sent-card .welcome-card .welcome-icon { font-size: 34px; margin-bottom: 6px; }
 .dash-sent-card .welcome-card .welcome-date { font-size: 16px; margin-bottom: 6px; }
-
-/* ============================================================
-   v2.38 需求2.2/3.1 + v2.39 需求2 + v2.42 需求1/2/3："编辑客户"窗口
-   （客户管理整行双击、发送任务-发送记录整行双击共用同一个窗口、同一份实现）
-   v2.42 起双击即进入编辑态：客户号 / 创建时间 / 最后修改时间三项只读，其余基本信息全部可编辑；
-   除"备注"外标签与输入框在同一行，两列各自用"标签轨 + 值轨"的 grid 对齐、标签与值一律左对齐。
-   ============================================================ */
-.customer-detail { display: flex; gap: 14px; }
-/* v2.42 需求3：两列并排，每列内部再分"标签轨 + 值轨"。
-   标签轨 76px 是按最长的标签"最后修改时间"（6 个汉字 ≈ 72px @12px）实测反解出来的最小值：
-   62px 时该标签会折成两行，76px 起全部标签都只有一行（.cd-label 另加 nowrap 兜底）。 */
-.cd-col {
-  flex: 1 1 0; min-width: 0;
-  display: grid; grid-template-columns: 76px minmax(0, 1fr);
-  gap: 10px 6px; align-items: center;
-}
-/* 备注的标签与文本域、邮箱的错误提示必须横跨两轨，否则会被塞进标签轨里 */
-.cd-span { grid-column: 1 / -1; }
-.cd-label { font-size: 12px; color: var(--text-secondary); text-align: left; white-space: nowrap; }
-.cd-req { color: #e53e3e; }
-.cd-value { font-size: 13px; line-height: 1.4; color: var(--text); white-space: nowrap; }
-.cd-input, .cd-select {
-  width: 100%; min-width: 0; box-sizing: border-box; text-align: left;
-  font-family: inherit; font-size: 13px; line-height: 1.4;
-  color: var(--text); background: var(--card); border: 1px solid var(--border); border-radius: 6px;
-  padding: 4px 6px;
-}
-textarea.cd-input { resize: vertical; min-height: 54px; }
-.cd-error { display: none; color: #e53e3e; font-size: 12px; margin-top: 4px; }
 
 /* v2.40 需求2：客户号是 12 位定长编号，列表里禁止折行，否则会把行高撑大、破坏仪表盘无滚动条与客户列表等高约定 */
 .cust-no, .dash-cust-no { white-space: nowrap; }

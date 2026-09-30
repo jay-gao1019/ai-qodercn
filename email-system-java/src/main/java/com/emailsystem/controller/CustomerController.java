@@ -37,27 +37,24 @@ public class CustomerController {
 
     /**
      * 有效客户分页列表，供创建发送任务时"选择客户"使用。
-     * <p>name/email/country/tags 为独立的模糊筛选条件。
+     * <p>search 是对姓名/邮箱/国家/标签的"或"模糊匹配（v2.43 需求5.3.1 的合并搜索框）；
+     * name 只按姓名模糊匹配，供"测试模板"的客户搜索使用。两者留空即不参与筛选。
      */
     @GetMapping("/active")
     public Result<Map<String, Object>> listActive(
             @RequestParam(required = false) String name,
-            @RequestParam(required = false) String email,
-            @RequestParam(required = false) String country,
-            @RequestParam(required = false) String tags,
+            @RequestParam(required = false) String search,
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(name = "page_size", defaultValue = "10") int pageSize) {
-        return Result.successWithData(customerService.listActivePaged(name, email, country, tags, page, pageSize));
+        return Result.successWithData(customerService.listActivePaged(name, search, page, pageSize));
     }
 
     /** 与 /active 同一筛选条件下命中的全部有效客户 ID（跨页"全部选中"） */
     @GetMapping("/active/ids")
     public Result<List<Long>> listActiveIds(
             @RequestParam(required = false) String name,
-            @RequestParam(required = false) String email,
-            @RequestParam(required = false) String country,
-            @RequestParam(required = false) String tags) {
-        return Result.successWithData(customerService.listActiveIds(name, email, country, tags));
+            @RequestParam(required = false) String search) {
+        return Result.successWithData(customerService.listActiveIds(name, search));
     }
 
     @PostMapping("")

@@ -8,7 +8,6 @@ import com.emailsystem.dto.response.StatsVO;
 import com.emailsystem.entity.Campaign;
 import com.emailsystem.entity.CampaignLog;
 import com.emailsystem.entity.CampaignRun;
-import com.emailsystem.entity.CampaignSendAttempt;
 import com.emailsystem.entity.Customer;
 import com.emailsystem.mapper.CampaignLogMapper;
 import com.emailsystem.mapper.CampaignMapper;
@@ -175,9 +174,12 @@ public class CampaignService {
     }
 
     /**
-     * v2.27：编辑任务。<strong>只允许编辑"新建后一封都还没发出去"的任务</strong>；
-     * 只要存在已发送/失败留痕或逐次尝试明细，就拒绝修改，保证历史发送记录不可被篡改。
-     * <p>正因为前提就是"零留痕"，这里对待发送记录的删除/新增不可能碰到任何发送痕迹。
+     * v2.45 需求1.2：编辑任务。<strong>只要任务不在发送中即可编辑</strong>，不再要求"一封都没发出去"；
+     * 可改的是发送参数——模板、SMTP 配置、发送方式与发送间隔。
+     * <p><strong>任务名称与收件客户列表保持不变</strong>（请求体里的 name / customer_ids 一律忽略），
+     * 所以待发送记录一条都不动，已发出的历史留痕与统计口径完全不受影响。
+     * <p>需求1.3 不需要额外改动：CampaignExecutor.doExecute 每次运行都按 campaign_id 重新读取
+     * 模板、SMTP 配置与发送间隔，"继续发送""全部重发"用的就是编辑后的配置。
      */
     public Map<String, Object> edit(Long campaignId, CampaignCreateDTO dto) {
         Campaign campaign = campaignMapper.selectById(campaignId);
@@ -185,67 +187,23 @@ public class CampaignService {
         if (taskManager.isRunning(campaignId) || "running".equals(campaign.getStatus())) {
             throw new BusinessException("任务正在发送中，请先停止后再编辑");
         }
-        if (!isNeverSent(campaignId, campaign)) {
-            throw new BusinessException("该任务已发送过邮件，不支持编辑");
-        }
-
-        List<Long> targetIds = resolveActiveCustomerIds(dto.getCustomerIds());
-        if (targetIds.isEmpty()) throw new BusinessException("没有有效的收件人");
 
         int intervalMin = dto.getIntervalMin() != null ? dto.getIntervalMin() : 1;
         String scheduleType = dto.getScheduleType() != null ? dto.getScheduleType() : "manual";
         String scheduleConfigJson = toJson(dto.getScheduleConfig());
 
-        transactionTemplate.executeWithoutResult(status -> {
-            Set<Long> pendingIds = new HashSet<>();
-            for (CampaignLog l : campaignLogMapper.selectList(new LambdaQueryWrapper<CampaignLog>()
-                    .eq(CampaignLog::getCampaignId, campaignId)
-                    .eq(CampaignLog::getStatus, "pending"))) {
-                pendingIds.add(l.getCustomerId());
-            }
-
-            campaignLogMapper.delete(new LambdaQueryWrapper<CampaignLog>()
-                    .eq(CampaignLog::getCampaignId, campaignId)
-                    .eq(CampaignLog::getStatus, "pending")
-                    .notIn(CampaignLog::getCustomerId, targetIds));
-
-            for (Long cid : targetIds) {
-                if (pendingIds.contains(cid)) continue;
-                CampaignLog log = new CampaignLog();
-                log.setCampaignId(campaignId);
-                log.setCustomerId(cid);
-                log.setStatus("pending");
-                campaignLogMapper.insert(log);
-            }
-
-            campaignMapper.update(null, new LambdaUpdateWrapper<Campaign>()
-                    .eq(Campaign::getId, campaignId)
-                    .set(Campaign::getName, dto.getName().trim())
-                    .set(Campaign::getTemplateId, dto.getTemplateId())
-                    .set(Campaign::getSmtpConfigId, dto.getSmtpConfigId())
-                    .set(Campaign::getIntervalMin, intervalMin)
-                    .set(Campaign::getScheduleType, scheduleType)
-                    .set(Campaign::getScheduleConfig, scheduleConfigJson)
-                    .set(Campaign::getTotal, targetIds.size()));
-        });
+        campaignMapper.update(null, new LambdaUpdateWrapper<Campaign>()
+                .eq(Campaign::getId, campaignId)
+                .set(Campaign::getTemplateId, dto.getTemplateId())
+                .set(Campaign::getSmtpConfigId, dto.getSmtpConfigId())
+                .set(Campaign::getIntervalMin, intervalMin)
+                .set(Campaign::getScheduleType, scheduleType)
+                .set(Campaign::getScheduleConfig, scheduleConfigJson));
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("campaign_id", campaignId);
-        data.put("total", targetIds.size());
+        data.put("total", campaign.getTotal());
         return data;
-    }
-
-    /** 任务是否"一封都没发出去过"：统计字段与两张留痕表都要为空，任一有痕迹即视为已发送 */
-    private boolean isNeverSent(Long campaignId, Campaign campaign) {
-        if (campaign.getSent() != null && campaign.getSent() > 0) return false;
-        if (campaign.getFailed() != null && campaign.getFailed() > 0) return false;
-        long logged = campaignLogMapper.selectCount(new LambdaQueryWrapper<CampaignLog>()
-                .eq(CampaignLog::getCampaignId, campaignId)
-                .in(CampaignLog::getStatus, "sent", "failed"));
-        if (logged > 0) return false;
-        long attempts = campaignSendAttemptMapper.selectCount(new LambdaQueryWrapper<CampaignSendAttempt>()
-                .eq(CampaignSendAttempt::getCampaignId, campaignId));
-        return attempts == 0;
     }
 
     public void startCampaign(Long campaignId) {
