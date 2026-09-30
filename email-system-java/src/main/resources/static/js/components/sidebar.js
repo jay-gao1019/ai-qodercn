@@ -1,0 +1,29 @@
+const sidebar = {
+  items: [
+    { key: 'dashboard', label: '仪表盘', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/></svg>' },
+    { key: 'campaigns', label: '发送任务', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="22" y1="2" x2="11" y2="13"/><polygon points="22 2 15 22 11 13 2 9 22 2"/></svg>' },
+    { key: 'customers', label: '客户管理', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 00-3-3.87"/><path d="M16 3.13a4 4 0 010 7.75"/></svg>' },
+    { key: 'templates', label: '邮件模板', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="16" y1="13" x2="8" y2="13"/><line x1="16" y1="17" x2="8" y2="17"/></svg>' },
+    { key: 'smtp', label: 'SMTP 配置', icon: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="2" y="4" width="20" height="16" rx="2"/><polyline points="22,4 12,13 2,4"/></svg>' },
+  ],
+  current: 'dashboard',
+  render(active) {
+    this.current = active;
+    return `
+      <div class="sidebar-logo">邮件发送系统<span>Email Campaign Manager</span></div>
+      <nav class="sidebar-nav">
+        ${this.items.map(it => `
+          <div class="nav-item ${it.key === active ? 'active' : ''}" data-page="${it.key}">
+            ${it.icon}
+            <span>${it.label}</span>
+          </div>
+        `).join('')}
+      </nav>
+    `;
+  },
+  bind() {
+    document.querySelectorAll('.nav-item').forEach(el => {
+      el.onclick = () => window.router.navigate(el.dataset.page);
+    });
+  }
+};

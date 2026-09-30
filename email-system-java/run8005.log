@@ -1,0 +1,63 @@
+[INFO] Scanning for projects...
+[INFO] 
+[INFO] --------------------< com.emailsystem:email-system >--------------------
+[INFO] Building email-system 1.0.0
+[INFO]   from pom.xml
+[INFO] --------------------------------[ jar ]---------------------------------
+[INFO] 
+[INFO] >>> spring-boot:3.2.5:run (default-cli) > test-compile @ email-system >>>
+[INFO] 
+[INFO] --- resources:3.3.1:resources (default-resources) @ email-system ---
+[INFO] Copying 1 resource from src\main\resources to target\classes
+[INFO] Copying 14 resources from src\main\resources to target\classes
+[INFO] 
+[INFO] --- compiler:3.11.0:compile (default-compile) @ email-system ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] --- resources:3.3.1:testResources (default-testResources) @ email-system ---
+[INFO] skip non existing resourceDirectory D:\jay\外贸邮件系统\邮件系统2\email-system-java\src\test\resources
+[INFO] 
+[INFO] --- compiler:3.11.0:testCompile (default-testCompile) @ email-system ---
+[INFO] Nothing to compile - all classes are up to date
+[INFO] 
+[INFO] <<< spring-boot:3.2.5:run (default-cli) < test-compile @ email-system <<<
+[INFO] 
+[INFO] 
+[INFO] --- spring-boot:3.2.5:run (default-cli) @ email-system ---
+[INFO] Attaching agents: []
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+ :: Spring Boot ::                (v3.2.5)
+
+2026-09-30T00:30:37.692+08:00  INFO 30028 --- [           main] com.emailsystem.EmailSystemApplication   : Starting EmailSystemApplication using Java 18.0.2 with PID 30028 (D:\jay\外贸邮件系统\邮件系统2\email-system-java\target\classes started by mandy in D:\jay\外贸邮件系统\邮件系统2\email-system-java)
+2026-09-30T00:30:37.698+08:00  INFO 30028 --- [           main] com.emailsystem.EmailSystemApplication   : No active profile set, falling back to 1 default profile: "default"
+2026-09-30T00:30:38.827+08:00  INFO 30028 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8005 (http)
+2026-09-30T00:30:38.850+08:00  INFO 30028 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-09-30T00:30:38.851+08:00  INFO 30028 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.20]
+2026-09-30T00:30:38.907+08:00  INFO 30028 --- [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-09-30T00:30:38.908+08:00  INFO 30028 --- [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1167 ms
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+2026-09-30T00:30:39.012+08:00  INFO 30028 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-09-30T00:30:39.149+08:00  INFO 30028 --- [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@7499eac7
+2026-09-30T00:30:39.151+08:00  INFO 30028 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+ _ _   |_  _ _|_. ___ _ |    _ 
+| | |\/|_)(_| | |_\  |_)||_|_\ 
+     /               |         
+                        3.5.7 
+2026-09-30T00:30:39.923+08:00  INFO 30028 --- [           main] o.s.b.a.w.s.WelcomePageHandlerMapping    : Adding welcome page: class path resource [static/index.html]
+2026-09-30T00:30:40.155+08:00  INFO 30028 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8005 (http) with context path ''
+2026-09-30T00:30:40.168+08:00  INFO 30028 --- [           main] com.emailsystem.EmailSystemApplication   : Started EmailSystemApplication in 2.839 seconds (process running for 3.213)
+Email System running at http://localhost:8000
+2026-09-30T00:30:49.249+08:00  INFO 30028 --- [nio-8005-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-09-30T00:30:49.249+08:00  INFO 30028 --- [nio-8005-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-09-30T00:30:49.250+08:00  INFO 30028 --- [nio-8005-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
+2026-09-30T00:31:14.331+08:00  INFO 30028 --- [nio-8005-exec-9] c.emailsystem.task.CampaignTaskManager   : Campaign 46 registered, running tasks: 1
+2026-09-30T00:31:14.340+08:00  INFO 30028 --- [     campaign-1] com.emailsystem.task.CampaignExecutor    : Starting campaign execution: 46 (run 29)
+2026-09-30T00:32:14.398+08:00  INFO 30028 --- [     campaign-1] com.emailsystem.task.CampaignExecutor    : Campaign 46 finished with status completed, sent=0, failed=1, pending=0
+2026-09-30T00:32:14.398+08:00  INFO 30028 --- [     campaign-1] c.emailsystem.task.CampaignTaskManager   : Campaign 46 removed, running tasks: 0

@@ -1,0 +1,33 @@
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+
+  .   ____          _            __ _ _
+ /\\ / ___'_ __ _ _(_)_ __  __ _ \ \ \ \
+( ( )\___ | '_ | '_| | '_ \/ _` | \ \ \ \
+ \\/  ___)| |_)| | | | | || (_| |  ) ) ) )
+  '  |____| .__|_| |_|_| |_\__, | / / / /
+ =========|_|==============|___/=/_/_/_/
+ :: Spring Boot ::                (v3.2.5)
+
+2026-09-30T07:17:43.396+08:00  INFO 7112 --- [           main] com.emailsystem.EmailSystemApplication   : Starting EmailSystemApplication v1.0.0 using Java 18.0.2 with PID 7112 (D:\jay\外贸邮件系统\邮件系统2\email-system-java\target\email-system-1.0.0.jar started by mandy in D:\jay\外贸邮件系统\邮件系统2\email-system-java)
+2026-09-30T07:17:43.400+08:00  INFO 7112 --- [           main] com.emailsystem.EmailSystemApplication   : No active profile set, falling back to 1 default profile: "default"
+2026-09-30T07:17:45.531+08:00  INFO 7112 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8000 (http)
+2026-09-30T07:17:45.552+08:00  INFO 7112 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-09-30T07:17:45.552+08:00  INFO 7112 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.20]
+2026-09-30T07:17:45.609+08:00  INFO 7112 --- [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-09-30T07:17:45.611+08:00  INFO 7112 --- [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 2095 ms
+Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
+2026-09-30T07:17:45.790+08:00  INFO 7112 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-09-30T07:17:46.076+08:00  INFO 7112 --- [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@4c19d42e
+2026-09-30T07:17:46.079+08:00  INFO 7112 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+ _ _   |_  _ _|_. ___ _ |    _ 
+| | |\/|_)(_| | |_\  |_)||_|_\ 
+     /               |         
+                        3.5.7 
+2026-09-30T07:17:47.334+08:00  INFO 7112 --- [           main] o.s.b.a.w.s.WelcomePageHandlerMapping    : Adding welcome page: class path resource [static/index.html]
+2026-09-30T07:17:47.741+08:00  INFO 7112 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8000 (http) with context path ''
+2026-09-30T07:17:47.757+08:00  INFO 7112 --- [           main] com.emailsystem.EmailSystemApplication   : Started EmailSystemApplication in 4.973 seconds (process running for 5.821)
+Email System running at http://localhost:8000
+2026-09-30T07:19:46.656+08:00  INFO 7112 --- [nio-8000-exec-3] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-09-30T07:19:46.656+08:00  INFO 7112 --- [nio-8000-exec-3] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-09-30T07:19:46.658+08:00  INFO 7112 --- [nio-8000-exec-3] o.s.web.servlet.DispatcherServlet        : Completed initialization in 0 ms
+2026-09-30T08:24:50.756+08:00  WARN 7112 --- [l-1 housekeeper] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Thread starvation or clock leap detected (housekeeper delta=28m4s18ms931µs200ns).
