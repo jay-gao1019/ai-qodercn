@@ -168,14 +168,18 @@ public class CampaignExecutor {
         int runSent = 0;
         int runFailed = 0;
 
-        for (CampaignLog logEntry : logs) {
+        for (int i = 0; i < logs.size(); i++) {
             if (Thread.currentThread().isInterrupted()) {
                 interrupted = true;
                 break;
             }
+            CampaignLog logEntry = logs.get(i);
             if ("sent".equals(logEntry.getStatus())) {
                 continue;
             }
+            // v2.46 需求3：发送间隔只在"后面还有要发的邮件"时等，等之前先确认后面确实还有待发送/失败的记录，
+            // 这样最后一封发出后立即进入收尾，任务状态不再晚一个 interval 才更新。
+            boolean waitForNext = hasWorkAfter(logs, i);
 
             Customer customer = customerMapper.selectById(logEntry.getCustomerId());
             if (customer == null) {
@@ -238,16 +242,29 @@ public class CampaignExecutor {
                 runFailed++;
             }
 
-            try {
-                Thread.sleep(intervalMin * 60_000L);
-            } catch (InterruptedException e) {
-                Thread.currentThread().interrupt();
-                interrupted = true;
-                break;
+            if (waitForNext) {
+                try {
+                    Thread.sleep(intervalMin * 60_000L);
+                } catch (InterruptedException e) {
+                    Thread.currentThread().interrupt();
+                    interrupted = true;
+                    break;
+                }
             }
         }
 
         finalizeCampaignAndRun(campaignId, runId, interrupted, runSent, runFailed);
+    }
+
+    /**
+     * 第 {@code index} 条之后是否还有待发送/失败的记录要处理。
+     * 已发送成功的日志会被跳过，所以"最后一条待处理日志"之后不再等待发送间隔（v2.46 需求3）。
+     */
+    private boolean hasWorkAfter(List<CampaignLog> logs, int index) {
+        for (int i = index + 1; i < logs.size(); i++) {
+            if (!"sent".equals(logs.get(i).getStatus())) return true;
+        }
+        return false;
     }
 
     /**

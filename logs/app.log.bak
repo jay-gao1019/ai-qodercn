@@ -8,37 +8,25 @@ Standard Commons Logging discovery in action with spring-jcl: please remove comm
  =========|_|==============|___/=/_/_/_/
  :: Spring Boot ::                (v3.2.5)
 
-2026-09-30T13:38:33.019+08:00  INFO 22384 --- [           main] com.emailsystem.EmailSystemApplication   : Starting EmailSystemApplication v1.0.0 using Java 18.0.2 with PID 22384 (D:\jay\外贸邮件系统\邮件系统2\email-system-java\target\email-system-1.0.0.jar started by mandy in D:\jay\外贸邮件系统\邮件系统2\email-system-java)
-2026-09-30T13:38:33.020+08:00  INFO 22384 --- [           main] com.emailsystem.EmailSystemApplication   : No active profile set, falling back to 1 default profile: "default"
-2026-09-30T13:38:34.828+08:00  INFO 22384 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8000 (http)
-2026-09-30T13:38:34.844+08:00  INFO 22384 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
-2026-09-30T13:38:34.844+08:00  INFO 22384 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.20]
-2026-09-30T13:38:34.892+08:00  INFO 22384 --- [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
-2026-09-30T13:38:34.892+08:00  INFO 22384 --- [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1761 ms
+2026-10-01T23:43:00.431+08:00  INFO 22856 --- [           main] com.emailsystem.EmailSystemApplication   : Starting EmailSystemApplication v1.0.0 using Java 18.0.2 with PID 22856 (D:\jay\外贸邮件系统\邮件系统2\email-system-java\target\email-system-v247.jar started by mandy in D:\jay\外贸邮件系统\邮件系统2\email-system-java)
+2026-10-01T23:43:00.433+08:00  INFO 22856 --- [           main] com.emailsystem.EmailSystemApplication   : No active profile set, falling back to 1 default profile: "default"
+2026-10-01T23:43:02.584+08:00  INFO 22856 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8000 (http)
+2026-10-01T23:43:02.601+08:00  INFO 22856 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-10-01T23:43:02.601+08:00  INFO 22856 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.20]
+2026-10-01T23:43:02.682+08:00  INFO 22856 --- [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-10-01T23:43:02.682+08:00  INFO 22856 --- [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 2130 ms
 Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
-2026-09-30T13:38:35.077+08:00  INFO 22384 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
-2026-09-30T13:38:35.299+08:00  INFO 22384 --- [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@65629ac6
-2026-09-30T13:38:35.299+08:00  INFO 22384 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-10-01T23:43:02.914+08:00  INFO 22856 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-10-01T23:43:03.153+08:00  INFO 22856 --- [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@1946384
+2026-10-01T23:43:03.178+08:00  INFO 22856 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
  _ _   |_  _ _|_. ___ _ |    _ 
 | | |\/|_)(_| | |_\  |_)||_|_\ 
      /               |         
                         3.5.7 
-2026-09-30T13:38:36.428+08:00  INFO 22384 --- [           main] o.s.b.a.w.s.WelcomePageHandlerMapping    : Adding welcome page: class path resource [static/index.html]
-2026-09-30T13:38:36.841+08:00  INFO 22384 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8000 (http) with context path ''
-2026-09-30T13:38:36.857+08:00  INFO 22384 --- [           main] com.emailsystem.EmailSystemApplication   : Started EmailSystemApplication in 4.391 seconds (process running for 5.07)
+2026-10-01T23:43:04.610+08:00  INFO 22856 --- [           main] o.s.b.a.w.s.WelcomePageHandlerMapping    : Adding welcome page: class path resource [static/index.html]
+2026-10-01T23:43:05.133+08:00  INFO 22856 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8000 (http) with context path ''
+2026-10-01T23:43:05.162+08:00  INFO 22856 --- [           main] com.emailsystem.EmailSystemApplication   : Started EmailSystemApplication in 5.299 seconds (process running for 6.008)
 Email System running at http://localhost:8000
-2026-09-30T13:38:37.493+08:00  INFO 22384 --- [nio-8000-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
-2026-09-30T13:38:37.493+08:00  INFO 22384 --- [nio-8000-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
-2026-09-30T13:38:37.493+08:00  INFO 22384 --- [nio-8000-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 0 ms
-2026-09-30T14:06:10.012+08:00  INFO 22384 --- [nio-8000-exec-9] c.emailsystem.task.CampaignTaskManager   : Campaign 51 registered, running tasks: 1
-2026-09-30T14:06:10.025+08:00  INFO 22384 --- [     campaign-1] com.emailsystem.task.CampaignExecutor    : Starting campaign execution: 51 (run 30)
-2026-09-30T14:07:12.432+08:00  INFO 22384 --- [     campaign-1] com.emailsystem.task.CampaignExecutor    : Campaign 51 finished with status completed, sent=1, failed=0, pending=0
-2026-09-30T14:07:12.434+08:00  INFO 22384 --- [     campaign-1] c.emailsystem.task.CampaignTaskManager   : Campaign 51 removed, running tasks: 0
-2026-09-30T14:14:36.604+08:00  INFO 22384 --- [io-8000-exec-10] c.emailsystem.task.CampaignTaskManager   : Campaign 52 registered, running tasks: 1
-2026-09-30T14:14:36.616+08:00  INFO 22384 --- [     campaign-2] com.emailsystem.task.CampaignExecutor    : Starting campaign execution: 52 (run 31)
-2026-09-30T14:17:17.679+08:00  INFO 22384 --- [     campaign-2] com.emailsystem.task.CampaignExecutor    : Campaign 52 finished with status cancelled, sent=3, failed=0, pending=115
-2026-09-30T14:17:17.681+08:00  INFO 22384 --- [     campaign-2] c.emailsystem.task.CampaignTaskManager   : Campaign 52 removed, running tasks: 0
-2026-09-30T14:17:37.058+08:00  INFO 22384 --- [nio-8000-exec-6] c.emailsystem.task.CampaignTaskManager   : Campaign 52 registered, running tasks: 1
-2026-09-30T14:17:37.070+08:00  INFO 22384 --- [     campaign-3] com.emailsystem.task.CampaignExecutor    : Starting campaign execution: 52 (run 32)
-2026-09-30T16:12:03.323+08:00  INFO 22384 --- [     campaign-3] com.emailsystem.task.CampaignExecutor    : Campaign 52 finished with status cancelled, sent=115, failed=0, pending=3
-2026-09-30T16:12:03.324+08:00  INFO 22384 --- [     campaign-3] c.emailsystem.task.CampaignTaskManager   : Campaign 52 removed, running tasks: 0
+2026-10-01T23:43:12.292+08:00  INFO 22856 --- [nio-8000-exec-1] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-10-01T23:43:12.292+08:00  INFO 22856 --- [nio-8000-exec-1] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-10-01T23:43:12.292+08:00  INFO 22856 --- [nio-8000-exec-1] o.s.web.servlet.DispatcherServlet        : Completed initialization in 0 ms

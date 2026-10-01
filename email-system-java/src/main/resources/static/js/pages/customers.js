@@ -13,8 +13,8 @@ function CustomersPage() {
       <input class="search-input" id="customerSearch" placeholder="搜索客户号、姓名、邮箱、公司、标签...">
       <select class="form-select" id="customerStatusFilter" style="width:130px">
         <option value="">全部状态</option>
-        <option value="active">仅有效客户</option>
-        <option value="inactive">仅失效客户</option>
+        <option value="active">有效客户</option>
+        <option value="inactive">失效客户</option>
       </select>
       <button class="btn btn-sm btn-secondary" id="btnSearch">搜索</button>
       <span class="search-divider"></span>
@@ -77,8 +77,8 @@ function customerFormHTML(c = {}) {
     <div class="form-group">
       <label>客户有效性</label>
       <select class="form-select" id="cStatus">
-        <option value="active" ${c.status !== 'inactive' ? 'selected' : ''}>有效（可参与发送任务）</option>
-        <option value="inactive" ${c.status === 'inactive' ? 'selected' : ''}>失效（不会出现在发送任务客户列表）</option>
+        <option value="active" ${c.status !== 'inactive' ? 'selected' : ''}>有效</option>
+        <option value="inactive" ${c.status === 'inactive' ? 'selected' : ''}>失效</option>
       </select>
     </div>
     <div class="form-group"><label>备注</label><textarea class="form-textarea" id="cNotes">${escHtml(c.notes || '')}</textarea></div>
@@ -235,7 +235,7 @@ function getEffectiveCount() {
 function filterDescription() {
   const parts = [];
   parts.push(customerSearch ? `关键字“${customerSearch}”` : '无关键字');
-  const statusLabel = { active: '仅有效客户', inactive: '仅失效客户' }[customerStatusFilter];
+  const statusLabel = { active: '有效客户', inactive: '失效客户' }[customerStatusFilter];
   parts.push(statusLabel || '全部状态');
   return parts.join('、');
 }
@@ -279,10 +279,10 @@ function renderSelectionBanner() {
       ${selectionCheckboxes(false)}
       ${total}`;
   } else {
-    // "清除选择"是可操作项，排在装饰性的"共 N 条"之前，窄视口下被截断的只会是后者
+    // v2.46 需求2：提示条不再提供"清除选择"链接（取消选中由逐行复选框或单击行完成），
+    // 这里只剩"已选中 N 条"与装饰性的"共 N 条"说明。
     el.innerHTML = `
       <span class="banner-strong">已选中 ${selectedIds.length} 条</span>
-      <a onclick="clearCustomerSelection()">清除选择</a>
       ${total}`;
   }
 }

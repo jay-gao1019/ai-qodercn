@@ -4,11 +4,18 @@ function SMTPPage() {
       <h1>SMTP 配置</h1>
       <button class="btn btn-primary" id="btnAddSmtp">+ 添加配置</button>
     </div>
+    <!-- v2.47 需求2.1/2.2：原每行的"测试/删除"收敛到这条工具栏（形态同客户管理/模板/任务），
+         单击选中某条配置后才可用；"编辑"改成双击列表行触发 -->
+    <div class="search-bar smtp-bar">
+      <span class="bar-hint">单击选中一条配置后可测试或删除，双击进入编辑</span>
+      <button class="btn btn-sm btn-secondary" id="btnSmtpTest" disabled>测试</button>
+      <button class="btn btn-sm btn-danger" id="btnSmtpDelete" disabled>删除</button>
+    </div>
     <div class="card">
       <div class="table-wrap">
         <table>
-          <thead><tr><th>名称</th><th>服务器</th><th>端口</th><th>用户名</th><th>SSL</th><th>默认</th><th>操作</th></tr></thead>
-          <tbody id="smtpList"><tr><td colspan="7" style="text-align:center;color:var(--text-secondary)">加载中...</td></tr></tbody>
+          <thead><tr><th>名称</th><th>服务器</th><th>端口</th><th>用户名</th><th>SSL</th><th>默认</th></tr></thead>
+          <tbody id="smtpList"><tr><td colspan="6" style="text-align:center;color:var(--text-secondary)">加载中...</td></tr></tbody>
         </table>
       </div>
       <div id="smtpPagination" style="display:flex;justify-content:space-between;align-items:center;margin-top:16px;font-size:13px;color:var(--text-secondary)"></div>
@@ -19,6 +26,8 @@ function SMTPPage() {
 let smtpPage = 1;
 let smtpPageSize = 15;
 let smtpAllData = [];
+// v2.47 需求2.1：工具栏操作对象。列表是前端切片分页，选中项在 smtpAllData 里始终可见，翻页不会丢
+let selectedSmtpId = null;
 
 function smtpFormHTML(cfg = {}) {
   // Common SMTP presets
@@ -63,7 +72,11 @@ function smtpFormHTML(cfg = {}) {
       <div id="encryptionHint" style="font-size:12px;color:var(--primary);margin-top:8px"></div>
     </div>
     
-    <div class="form-group"><label class="checkbox-label"><input type="checkbox" id="smtpDefault" ${cfg.is_default ? 'checked' : ''}> 设为默认</label></div>
+    <div class="form-group">
+      <label class="checkbox-label"><input type="checkbox" id="smtpDefault" ${cfg.is_default ? 'checked' : ''}> 设为默认</label>
+      <!-- v2.47 需求2.3：默认配置全局唯一，勾选即接管；库里只剩一条配置时它必然是默认 -->
+      <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">最多只能有一个默认配置；勾选本项后原默认配置会自动取消；只剩一条配置时该配置自动作为默认。</div>
+    </div>
   `;
 }
 
@@ -147,6 +160,29 @@ async function loadSmtpList() {
   renderSmtpPage();
 }
 
+/** v2.47 需求2.1：当前选中那条配置；删除或数据刷新后不在列表里时为 null */
+function getSelectedSmtp() {
+  return smtpAllData.find(c => c.id === selectedSmtpId) || null;
+}
+
+function updateSmtpToolbar() {
+  const cfg = getSelectedSmtp();
+  ['btnSmtpTest', 'btnSmtpDelete'].forEach(bid => {
+    const el = document.getElementById(bid);
+    if (!el) return;
+    el.disabled = !cfg;
+    el.title = cfg ? `对"${cfg.name}"执行${el.textContent.trim()}` : '请先单击选中一条配置';
+  });
+}
+
+window.rowSelectSmtp = function(id) {
+  selectedSmtpId = id;
+  document.querySelectorAll('#smtpList tr').forEach(tr => {
+    tr.classList.toggle('row-selected', Number(tr.dataset.sid) === id);
+  });
+  updateSmtpToolbar();
+};
+
 function renderSmtpPage() {
   const tbody = document.getElementById('smtpList');
   const total = smtpAllData.length;
@@ -154,24 +190,21 @@ function renderSmtpPage() {
   if (smtpPage > totalPages) smtpPage = totalPages;
   const start = (smtpPage - 1) * smtpPageSize;
   const pageData = smtpAllData.slice(start, start + smtpPageSize);
+  if (!smtpAllData.some(c => c.id === selectedSmtpId)) selectedSmtpId = null;
 
   if (pageData.length > 0) {
-    tbody.innerHTML = pageData.map(c => `<tr>
+    tbody.innerHTML = pageData.map(c => `<tr class="clickable-row${c.id === selectedSmtpId ? ' row-selected' : ''}" data-sid="${c.id}" title="单击选中该配置并用上方工具栏操作，双击编辑" onclick="rowSelectSmtp(${c.id})" ondblclick="editSmtp(${c.id})">
       <td>${c.name}</td>
       <td>${c.host}</td>
       <td>${c.port}</td>
       <td>${c.username}</td>
       <td>${c.use_ssl ? '✅' : '❌'}</td>
       <td>${c.is_default ? '<span class="badge badge-success">默认</span>' : ''}</td>
-      <td>
-        <button class="btn btn-sm btn-secondary" onclick="editSmtp(${c.id})">编辑</button>
-        <button class="btn btn-sm btn-secondary" onclick="testSmtp(${c.id})">测试</button>
-        <button class="btn btn-sm btn-danger" onclick="deleteSmtp(${c.id})">删除</button>
-      </td>
     </tr>`).join('');
   } else {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><p>暂无 SMTP 配置，请添加</p></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="6" class="empty-state"><p>暂无 SMTP 配置，请添加</p></td></tr>';
   }
+  updateSmtpToolbar();
 
   const pagDiv = document.getElementById('smtpPagination');
   if (pagDiv) {
@@ -197,8 +230,11 @@ function renderSmtpPage() {
 }
 
 window.editSmtp = async function(id) {
-  const res = await api.get('/api/smtp/configs');
-  const cfg = res.data.find(c => c.id === id);
+  let cfg = smtpAllData.find(c => c.id === id);
+  if (!cfg) {
+    const res = await api.get('/api/smtp/configs');
+    cfg = (res.data || []).find(c => c.id === id);
+  }
   if (!cfg) return;
   Modal.show({
     title: '编辑 SMTP 配置',
@@ -251,12 +287,14 @@ window.testSmtp = function(id) {
 };
 
 window.deleteSmtp = function(id) {
+  const cfg = smtpAllData.find(c => c.id === id);
   Modal.show({
     title: '确认删除',
-    content: '<p>确定要删除此 SMTP 配置吗？</p>',
+    content: `<p>确定要删除 SMTP 配置${cfg ? ` "${escHtml(cfg.name)}"` : ''}吗？</p>`,
     confirmText: '删除',
     onConfirm: async () => {
       const r = await api.del(`/api/smtp/configs/${id}`);
+      if (id === selectedSmtpId) selectedSmtpId = null;
       showToast(r.message, 'success');
       loadSmtpList();
     }
@@ -265,6 +303,18 @@ window.deleteSmtp = function(id) {
 
 async function bindSmtpEvents() {
   await loadSmtpList();
+
+  // v2.47 需求2.1：工具栏两枚按钮作用于当前单击选中的那条配置
+  document.getElementById('btnSmtpTest').onclick = () => {
+    const cfg = getSelectedSmtp();
+    if (!cfg) { showToast('请先单击选中一条配置', 'error'); return; }
+    testSmtp(cfg.id);
+  };
+  document.getElementById('btnSmtpDelete').onclick = () => {
+    const cfg = getSelectedSmtp();
+    if (!cfg) { showToast('请先单击选中一条配置', 'error'); return; }
+    deleteSmtp(cfg.id);
+  };
 
   document.getElementById('btnAddSmtp').onclick = () => {
     Modal.show({

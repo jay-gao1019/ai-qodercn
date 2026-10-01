@@ -17,6 +17,7 @@ public class SmtpConfigService {
     private final SmtpConfigMapper smtpConfigMapper;
 
     public List<SmtpConfig> listAll() {
+        // v2.47 需求2.3：默认配置排在最前，创建任务弹窗的 SMTP 下拉直接沿用这个顺序
         return smtpConfigMapper.selectList(
                 new LambdaQueryWrapper<SmtpConfig>()
                         .orderByDesc(SmtpConfig::getIsDefault)
@@ -38,6 +39,7 @@ public class SmtpConfigService {
         config.setUseTls(dto.getUseTls());
         config.setIsDefault(dto.getIsDefault());
         smtpConfigMapper.insert(config);
+        enforceSoleConfigIsDefault();
     }
 
     public void update(Long id, SmtpConfigUpdateDTO dto) {
@@ -57,10 +59,12 @@ public class SmtpConfigService {
         if (dto.getUseTls() != null) config.setUseTls(dto.getUseTls());
         if (dto.getIsDefault() != null) config.setIsDefault(dto.getIsDefault());
         smtpConfigMapper.updateById(config);
+        enforceSoleConfigIsDefault();
     }
 
     public void delete(Long id) {
         smtpConfigMapper.deleteById(id);
+        enforceSoleConfigIsDefault();
     }
 
     public SmtpConfig getById(Long id) {
@@ -81,5 +85,15 @@ public class SmtpConfigService {
                         .eq(SmtpConfig::getIsDefault, true)
                         .ne(SmtpConfig::getId, excludeId)
         );
+    }
+
+    /** v2.47 需求2.3：库里只剩一条配置时，它必然就是默认配置 */
+    private void enforceSoleConfigIsDefault() {
+        List<SmtpConfig> all = smtpConfigMapper.selectList(new LambdaQueryWrapper<>());
+        if (all.size() != 1 || Boolean.TRUE.equals(all.get(0).getIsDefault())) return;
+        SmtpConfig update = new SmtpConfig();
+        update.setIsDefault(true);
+        smtpConfigMapper.update(update,
+                new LambdaQueryWrapper<SmtpConfig>().eq(SmtpConfig::getId, all.get(0).getId()));
     }
 }

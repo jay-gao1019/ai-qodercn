@@ -116,6 +116,7 @@ function updateTemplateToolbar() {
   });
   const hint = document.getElementById('tplBarHint');
   if (!hint) return;
+  /** 选中即可，不需要进行提示，提示内容会挤走功能按钮，影响功能按钮的位置 **
   if (t) {
     hint.textContent = `已选中：${t.name}`;
     hint.title = `已选中模板「${t.name}」，工具栏按钮将作用于该模板`;
@@ -123,6 +124,7 @@ function updateTemplateToolbar() {
     hint.textContent = '单击下方模板卡片即可选中';
     hint.title = '';
   }
+  */
 }
 
 /** 当前选中模板的 id；未选中时提示并返回 null，供各按钮回调复用 */
@@ -881,10 +883,6 @@ let testSendCustomer = null;
 
 function testSendHTML(t, smtpList) {
   return `
-    <p style="margin-bottom:14px;font-size:13px;color:var(--text-secondary)">
-      模板「${escHtml(t.name)}」测试：选择一个 SMTP 配置和一个客户，系统按该客户的信息渲染 \${cust_*} 变量，
-      并把这一封邮件发送到该客户的邮箱。
-    </p>
     <div class="form-group form-group-inline">
       <label>SMTP 配置</label>
       <select class="form-input" id="tplTestSmtp">
@@ -906,9 +904,6 @@ function testSendHTML(t, smtpList) {
       <label>收件人</label>
       <span id="tplTestTo" style="font-size:13px;word-break:break-all">请先选择客户</span>
     </div>
-    <p style="font-size:12px;color:var(--text-secondary)">
-      只向所选客户本人的邮箱发 1 封测试邮件，不产生发送记录、不影响任何发送任务。仅"有效"状态的客户可被选中。
-    </p>
   `;
 }
 

@@ -174,10 +174,12 @@ public class CampaignService {
     }
 
     /**
-     * v2.45 需求1.2：编辑任务。<strong>只要任务不在发送中即可编辑</strong>，不再要求"一封都没发出去"；
+     * v2.45 需求1.2：编辑任务。<strong>只要任务不在发送中即可编辑</strong>；
      * 可改的是发送参数——模板、SMTP 配置、发送方式与发送间隔。
-     * <p><strong>任务名称与收件客户列表保持不变</strong>（请求体里的 name / customer_ids 一律忽略），
-     * 所以待发送记录一条都不动，已发出的历史留痕与统计口径完全不受影响。
+     * <p>v2.46 需求4：<strong>该任务一封邮件都还没发出去时，收件客户列表也可以改</strong>，
+     * 改写口径与新建任务完全一致（只保留有效客户、日志整批重建为待发送、total 同步刷新）；
+     * 已经发出过邮件的任务仍忽略请求体里的 {@code customer_ids}，历史留痕与统计口径不受编辑影响。
+     * <p>任务名称在任何情况下都不可改（请求体里的 {@code name} 一律忽略）。
      * <p>需求1.3 不需要额外改动：CampaignExecutor.doExecute 每次运行都按 campaign_id 重新读取
      * 模板、SMTP 配置与发送间隔，"继续发送""全部重发"用的就是编辑后的配置。
      */
@@ -192,17 +194,49 @@ public class CampaignService {
         String scheduleType = dto.getScheduleType() != null ? dto.getScheduleType() : "manual";
         String scheduleConfigJson = toJson(dto.getScheduleConfig());
 
-        campaignMapper.update(null, new LambdaUpdateWrapper<Campaign>()
-                .eq(Campaign::getId, campaignId)
-                .set(Campaign::getTemplateId, dto.getTemplateId())
-                .set(Campaign::getSmtpConfigId, dto.getSmtpConfigId())
-                .set(Campaign::getIntervalMin, intervalMin)
-                .set(Campaign::getScheduleType, scheduleType)
-                .set(Campaign::getScheduleConfig, scheduleConfigJson));
+        // "发出去过"以发送日志的真实状态为准（sent/failed/中断都算），而不是 campaigns.sent+failed 计数器——
+        // 计数器会被"继续发送"重置为 0，此时任务其实已经发出过邮件。
+        long dispatched = campaignLogMapper.selectCount(new LambdaQueryWrapper<CampaignLog>()
+                .eq(CampaignLog::getCampaignId, campaignId)
+                .ne(CampaignLog::getStatus, "pending"));
+        List<Long> recipients = null;
+        if (dispatched == 0 && dto.getCustomerIds() != null) {
+            recipients = resolveActiveCustomerIds(dto.getCustomerIds());
+            if (recipients.isEmpty()) throw new BusinessException("没有选择客户");
+        }
+        final List<Long> newRecipients = recipients;
+
+        transactionTemplate.executeWithoutResult(status -> {
+            campaignMapper.update(null, new LambdaUpdateWrapper<Campaign>()
+                    .eq(Campaign::getId, campaignId)
+                    .set(Campaign::getTemplateId, dto.getTemplateId())
+                    .set(Campaign::getSmtpConfigId, dto.getSmtpConfigId())
+                    .set(Campaign::getIntervalMin, intervalMin)
+                    .set(Campaign::getScheduleType, scheduleType)
+                    .set(Campaign::getScheduleConfig, scheduleConfigJson));
+
+            if (newRecipients != null) {
+                campaignLogMapper.delete(new LambdaQueryWrapper<CampaignLog>()
+                        .eq(CampaignLog::getCampaignId, campaignId));
+                for (Long cid : newRecipients) {
+                    CampaignLog log = new CampaignLog();
+                    log.setCampaignId(campaignId);
+                    log.setCustomerId(cid);
+                    log.setStatus("pending");
+                    campaignLogMapper.insert(log);
+                }
+                campaignMapper.update(null, new LambdaUpdateWrapper<Campaign>()
+                        .eq(Campaign::getId, campaignId)
+                        .set(Campaign::getTotal, newRecipients.size())
+                        .set(Campaign::getSent, 0)
+                        .set(Campaign::getFailed, 0));
+            }
+        });
 
         Map<String, Object> data = new LinkedHashMap<>();
         data.put("campaign_id", campaignId);
-        data.put("total", campaign.getTotal());
+        data.put("total", newRecipients != null ? newRecipients.size() : campaign.getTotal());
+        data.put("recipients_updated", newRecipients != null);
         return data;
     }
 

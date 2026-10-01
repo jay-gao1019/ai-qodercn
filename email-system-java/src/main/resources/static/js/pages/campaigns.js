@@ -62,6 +62,8 @@ const runTypeText = {
  * <p>v2.45 需求1.1：原"发送""继续发送"合并成一枚按钮，sendFresh 决定它显示成哪一种——
  * 新建且从未执行过发送 → "发送"（走 /{id}/start）；已经跑过、成功率不为 100% → "继续发送"（走 /{id}/resume）。
  * <p>v2.45 需求1.2：编辑不再要求"一封都没发出去"，只要不在发送中即可。
+ * <p>v2.46 需求4：收件客户能否一起改，看该任务是否一封都没发出去（{@code canEditRecipients}）；
+ * 口径与后端的"发送日志里没有任何非 pending 记录"一致，前端用 sent+failed 推导。
  */
 function campaignFlags(c) {
   const display = c.display_status || c.status;
@@ -78,6 +80,7 @@ function campaignFlags(c) {
     canResume: !sendFresh && hasHistory && notRunning && c.total - c.sent > 0,
     canResendAll: hasHistory && notRunning && (c.status === 'completed' || c.status === 'cancelled'),
     canEdit: notRunning,
+    canEditRecipients: notRunning && !everSent,
     // v2.30 需求2：新建（未发送）任务也可删除，只保留"发送中的任务不可删"这一限制
     canDelete: notRunning,
   };
@@ -101,7 +104,9 @@ function campaignButtonHint(key, c, f) {
     return {
       canPause: '暂停该任务：已发送的邮件不受影响，未发送的保持待发送',
       canResendAll: '重新发送给该任务中的全部客户，包括之前已发送成功的',
-      canEdit: '修改该任务的模板、SMTP 配置与发送方式（任务名称与收件客户不可改，发送中的任务不可编辑）',
+      canEdit: '修改该任务的模板、SMTP 配置与发送方式'
+        + (f.canEditRecipients ? '；该任务还没发出过邮件，收件客户也可以一起改' : '；任务名称固定，收件客户已随邮件发出、不可再改')
+        + '（发送中的任务不可编辑）',
       canDelete: '删除该发送任务，相关发送记录一并删除',
     }[key];
   }
@@ -659,7 +664,8 @@ async function bindCampaignsEvents() {
  *  - 发送间隔以"分钟"设置，立即发送与定时发送各自独立、与单选项同一行
  *  - 收件人改为"选择客户"按钮 + 分页选择列表
  *  - 定期自动发送已裁撤
- *  - v2.45 需求1.2：编辑模式下任务名称与收件客户只读，可改的只有模板 / SMTP 配置 / 发送方式
+ *  - v2.45 需求1.2：编辑模式下任务名称只读，可改的只有模板 / SMTP 配置 / 发送方式
+ *  - v2.46 需求4：该任务一封都没发出去时，收件客户在编辑模式下同样可改
  * =========================================================================== */
 
 /** 创建任务弹窗的收件人选择结果（跨分页累积，关闭创建弹窗时重置） */
@@ -668,7 +674,7 @@ const campCust = { selected: new Set(), filterDesc: '' };
 let cpk = null;
 /** 弹窗打开时的"确认按钮可用性"同步钩子（选择客户列表在叠加层里改动选择集时要回写底层按钮） */
 let campFormSync = null;
-/** v2.45 需求1.2：编辑模式下收件客户不可改，汇总文案要换成只读说法 */
+/** v2.45 需求1.2 引入：编辑已发出过邮件的任务时收件客户不可改，汇总文案要换成只读说法 */
 let campCustReadOnly = false;
 
 function resetCampCust() {
@@ -699,8 +705,8 @@ function renderCampCustSummary() {
 
 /**
  * 创建 / 编辑发送任务。
- * @param campaign 传入任务对象即进入编辑模式（v2.45 需求1.2：只要不在发送中即可编辑，
- *                 任务名称与收件客户只读，可改模板 / SMTP 配置 / 发送方式）；为空即新建
+ * @param campaign 传入任务对象即进入编辑模式（v2.45 需求1.2：只要不在发送中即可编辑，任务名称始终只读，
+ *                 可改模板 / SMTP 配置 / 发送方式；v2.46 需求4：还没发出过邮件的任务收件客户也可改）；为空即新建
  */
 async function openCampaignForm(campaign) {
   const editing = !!campaign;
@@ -717,15 +723,23 @@ async function openCampaignForm(campaign) {
   if (smtpConfigs.length === 0) { showToast('请先配置 SMTP', 'error'); return; }
 
   resetCampCust();
+  // v2.47 需求2.3：默认配置置顶并加"（默认）"文字标注。后端 listAll() 已按 is_default 倒序返回，
+  // 这里再显式排一次，保证下拉顺序不依赖后端排序细节（Array.sort 稳定，其余顺序仍按后端返回顺序）
+  smtpConfigs.sort((a, b) => (b.is_default ? 1 : 0) - (a.is_default ? 1 : 0));
   const defaultSmtp = smtpConfigs.find(s => s.is_default) || smtpConfigs[0];
   const templateId = editing ? campaign.template_id : templates[0].id;
   const smtpId = editing ? campaign.smtp_config_id : defaultSmtp.id;
   const intervalMin = editing ? (campaign.interval_min || 1) : 1;
   const scheduleType = editing ? (campaign.schedule_type === 'one-time' ? 'one-time' : 'manual') : 'manual';
   const scheduleDatetime = editing ? editDatetimeValue(campaign.schedule_config) : '';
+  // v2.46 需求4：编辑"一封都没发出去"的任务时，收件客户和新建时走同一套逻辑——
+  // 打开弹窗先默认选中该任务已有的收件客户，点"选择客户"重新勾选（含搜索后替换）后以最新集合为准。
+  // 已发出过邮件的任务保持 v2.45 口径：收件客户只读。
+  const recipientsEditable = !editing || campaignFlags(campaign).canEditRecipients;
+  campCustReadOnly = editing && !recipientsEditable;
   if (editing) {
-    campCustReadOnly = true;
     (campaign.recipientIds || []).forEach(id => campCust.selected.add(id));
+    if (recipientsEditable) campCust.filterDesc = '该任务原有的收件客户';
   } else {
     // v2.29 需求 4：新建任务默认选中当前全部有效客户（可在"选择客户"列表里增减）
     (activeIdsRes.code === 0 ? activeIdsRes.data || [] : []).forEach(id => campCust.selected.add(id));
@@ -751,7 +765,7 @@ async function openCampaignForm(campaign) {
         <div class="form-group">
           <label>SMTP 配置</label>
           <select class="form-select" id="campSmtp">
-            ${smtpConfigs.map(s => `<option value="${s.id}" ${s.id === smtpId ? 'selected' : ''}>${escHtml(s.name)} (${escHtml(s.host)})</option>`).join('')}
+            ${smtpConfigs.map(s => `<option value="${s.id}" ${s.id === smtpId ? 'selected' : ''}>${escHtml(s.name)} (${escHtml(s.host)})${s.is_default ? '（默认）' : ''}</option>`).join('')}
           </select>
         </div>
       </div>
@@ -783,12 +797,12 @@ async function openCampaignForm(campaign) {
         </div>
       </div>
       <div class="form-group">
-        <label>选择客户${editing ? '' : ' <b class="required-mark">*</b>'}</label>
+        <label>选择客户${recipientsEditable ? ' <b class="required-mark">*</b>' : ''}</label>
         <div class="cust-pick-row">
-          ${editing ? '' : '<button type="button" class="btn btn-sm btn-secondary" id="btnPickCustomers">👥 选择客户</button>'}
+          ${recipientsEditable ? '<button type="button" class="btn btn-sm btn-secondary" id="btnPickCustomers">👥 选择客户</button>' : ''}
           <span class="cust-summary" id="campCustSummary"></span>
         </div>
-        ${editing ? '' : '<div class="field-error" id="campCustError">请至少选择 1 位收件客户</div>'}
+        ${recipientsEditable ? '<div class="field-error" id="campCustError">请至少选择 1 位收件客户</div>' : ''}
       </div>
     `,
     confirmText: editing ? '保存修改' : '创建任务',
@@ -892,7 +906,8 @@ function editDatetimeValue(scheduleConfigJson) {
 
 /**
  * v2.45 需求1.2：编辑任务入口。只要任务不在发送中就能编辑，已发出过邮件的也可以；
- * 可改的是模板 / SMTP 配置 / 发送方式，任务名称与收件客户在弹窗里只读。
+ * 可改的是模板 / SMTP 配置 / 发送方式，任务名称在弹窗里只读；
+ * v2.46 需求4：还没发出过任何一封邮件的任务，收件客户也可以在这同一个弹窗里改。
  */
 window.editCampaign = async function(id) {
   const campaign = await findCampaignById(id);
@@ -926,7 +941,7 @@ function cpkBoxes() {
 }
 
 function openCustomerPicker() {
-  if (!cpk) cpk = { page: 1, pageSize: 10, total: 0, filters: { search: '' }, replaceOnCheck: false };
+  if (!cpk) cpk = { page: 1, pageSize: 10, total: 0, filters: { search: '' }, searchMode: false, pending: new Set() };
   const f = cpk.filters;
 
   cpk.box = Modal.show({
@@ -957,26 +972,26 @@ function openCustomerPicker() {
       <div id="cpkPag" class="pag-bar"></div>
     `,
     onConfirm: () => {
+      // v2.47 需求1.2：搜索模式下勾选的是"搜索结果里选中的记录"，点确定才把它整体替换进收件客户列表；
+      // 非搜索模式（无关键字）沿用 v2.43 之前的实时编辑语义，不做替换
+      if (cpk.searchMode) campCust.selected = new Set(cpk.pending);
       campCust.filterDesc = cpkFilterDesc(cpk.filters);
       renderCampCustSummary();
     },
   });
 
-  cpkEl('cpkSearch').onclick = () => {
-    cpk.filters = { search: cpkEl('cpkKw').value.trim() };
-    cpk.page = 1;
-    // v2.43 需求5.3.3：执行了搜索之后，第一次勾选搜索结果要用勾选结果替换原有选中集合
-    cpk.replaceOnCheck = !!cpk.filters.search;
-    loadCpkPage();
-  };
+  cpkEl('cpkSearch').onclick = () => { cpkApplySearch(); };
   cpkEl('cpkReset').onclick = () => {
     cpkEl('cpkKw').value = '';
     cpk.filters = { search: '' };
-    cpk.replaceOnCheck = false;
+    // 重置即退出搜索结果模式：模式下尚未提交的勾选作废，勾选重新直接作用于当前选中集合
+    cpk.searchMode = false;
+    cpk.pending = new Set();
     cpk.page = 1;
     loadCpkPage();
   };
   cpkEl('cpkKw').onkeydown = (e) => {
+    // v2.47 需求1.1：回车等同于点"查询"
     if (e.key === 'Enter') cpkEl('cpkSearch').click();
   };
 
@@ -988,7 +1003,42 @@ function openCustomerPicker() {
     syncCpkSelectionFromCheckboxes();
   };
 
-  loadCpkPage();
+  // 打开时若还留着上次的关键字，直接按搜索结果模式重建勾选基线，避免"列表是子集但勾选走实时语义"的割裂
+  if (f.search) cpkApplySearch();
+  else loadCpkPage();
+}
+
+/** v2.47 需求1.2：勾选状态写入的目标集合——搜索模式下是待提交的 pending，否则是当前选中集合 */
+function cpkEditSet() {
+  return cpk.searchMode ? cpk.pending : campCust.selected;
+}
+
+/** 该客户在列表里是否显示为已勾选 */
+function cpkIsChecked(id) {
+  return cpkEditSet().has(id);
+}
+
+/**
+ * 执行关键字查询。关键字非空且命中集合取到时进入"搜索结果模式"：
+ * pending 先以"搜索结果 ∩ 当前已选"播种（对应需求1.2 的"进入界面后默认勾选已选中的客户"），
+ * 之后所有勾选只改 pending，点"确定"才整体替换 campCust.selected。
+ */
+async function cpkApplySearch() {
+  const kw = cpkEl('cpkKw') ? cpkEl('cpkKw').value.trim() : '';
+  cpk.filters = { search: kw };
+  cpk.page = 1;
+  cpk.searchMode = false;
+  cpk.pending = new Set();
+  if (kw) {
+    const res = await api.get(`/api/customers/active/ids?${cpkQuery()}`);
+    // 命中集合取不到时退回实时编辑语义，至少保证列表和勾选可用，不会把已选客户静默清空
+    if (res.code === 0) {
+      const hits = new Set(res.data || []);
+      cpk.searchMode = true;
+      campCust.selected.forEach(id => { if (hits.has(id)) cpk.pending.add(id); });
+    }
+  }
+  await loadCpkPage();
 }
 
 /** 选择 / 取消当前筛选条件下命中的全部有效客户（跨页，用后端返回的命中 ID 集合） */
@@ -997,7 +1047,8 @@ async function applyCpkMatchedSelection(select) {
   if (res.code !== 0) { showToast('客户列表加载失败', 'error'); return; }
   const ids = res.data || [];
   if (ids.length === 0) { showToast('当前筛选条件没有命中的有效客户', 'error'); return; }
-  ids.forEach(id => { select ? campCust.selected.add(id) : campCust.selected.delete(id); });
+  const set = cpkEditSet();
+  ids.forEach(id => { select ? set.add(id) : set.delete(id); });
   cpkBoxes().forEach(cb => { cb.checked = select; });
   cpkEl('cpkCheckAll').checked = select;
   renderCpkSummary();
@@ -1016,7 +1067,7 @@ async function loadCpkPage() {
 
   body.innerHTML = customers.length > 0 ? customers.map(c => `
     <tr class="clickable-row" data-id="${c.id}">
-      <td><input type="checkbox" class="cpk-check" value="${c.id}" ${campCust.selected.has(c.id) ? 'checked' : ''}></td>
+      <td><input type="checkbox" class="cpk-check" value="${c.id}" ${cpkIsChecked(c.id) ? 'checked' : ''}></td>
       <td>${escHtml(c.customer_no) || '-'}</td>
       <td>${escHtml(c.name)}</td>
       <td>${escHtml(c.email)}</td>
@@ -1047,21 +1098,19 @@ async function loadCpkPage() {
 }
 
 /**
- * 把本页复选框状态同步进已选集合（其他页的选择保持不变）。
- * v2.43 需求5.3.3：执行过关键字搜索之后，第一次勾选搜索结果时先把原有集合清空，
- * 让"勾选的客户"替换"原来已选中的客户"（新建任务默认全选全部有效客户，不替换就会越勾越多）。
+ * 把本页复选框状态同步进当前勾选目标集合（其他页的勾选保持不变）。
+ * 【自 v2.47 需求1.2 起，v2.43 需求5.3.3 的"搜索后第一次勾选先清空原有集合"（replaceOnCheck）已作废】：
+ * 改为搜索结果模式——勾选落在 cpk.pending 上，点"确定"时才用 pending 整体替换收件客户集合，
+ * 取消/关闭弹窗则全部作废，因此不再需要在第一次勾选时破坏性清空。
  */
 function syncCpkSelectionFromCheckboxes() {
-  const boxes = cpkBoxes();
-  if (cpk.replaceOnCheck && boxes.some(cb => cb.checked)) {
-    campCust.selected.clear();
-    cpk.replaceOnCheck = false;
-  }
-  boxes.forEach(cb => {
+  const set = cpkEditSet();
+  cpkBoxes().forEach(cb => {
     const id = parseInt(cb.value, 10);
-    if (cb.checked) campCust.selected.add(id);
-    else campCust.selected.delete(id);
+    if (cb.checked) set.add(id);
+    else set.delete(id);
   });
+  const boxes = cpkBoxes();
   cpkEl('cpkCheckAll').checked = boxes.length > 0 && boxes.every(cb => cb.checked);
   renderCpkSummary();
 }
@@ -1071,7 +1120,11 @@ function renderCpkSummary() {
   if (campFormSync) campFormSync();
   const el = cpkEl('cpkSummary');
   if (!el) return;
-  el.innerHTML = `已选中 <b>${campCust.selected.size}</b> 位客户 · 筛选条件：${escHtml(cpkFilterDesc(cpk.filters))} · 命中 ${cpk.total} 位有效客户`;
+  // v2.47 需求1.2：搜索模式下计数显示的是尚未提交的勾选结果，并点明"确定"后才替换
+  const shown = cpk.searchMode ? cpk.pending.size : campCust.selected.size;
+  el.innerHTML = `已选中 <b>${shown}</b> 位客户`
+    + (cpk.searchMode ? `（搜索结果内勾选，点"确定"后替换当前选中的 ${campCust.selected.size} 位）` : '')
+    + ` · 筛选条件：${escHtml(cpkFilterDesc(cpk.filters))} · 命中 ${cpk.total} 位有效客户`;
   const allBtn = cpkEl('cpkPickAll');
   if (allBtn) allBtn.textContent = `全部选中筛选结果 (${cpk.total})`;
 }

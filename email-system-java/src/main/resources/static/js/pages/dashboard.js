@@ -467,7 +467,9 @@ async function renderDashDetail() {
               <td style="color:var(--success)">${numOrDash(c.sent)}</td>
               <td style="color:var(--danger)">${numOrDash(c.failed)}</td>
               <td>${numOrDash(c.total)}</td>
-              <td style="font-size:13px">${fmt(c.started_at)}</td>
+              <!-- v2.46 需求1：开始时间取该任务第一封实际发出的邮件（first_sent_at），
+                   campaigns.started_at 每次运行都会被覆盖，跨运行只剩最后一轮的起点；没发出过邮件显示"-" -->
+              <td style="font-size:13px">${fmt(c.first_sent_at)}</td>
               <td style="font-size:13px">${fmt(c.finished_at)}</td>
             </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary)">暂无任务</td></tr>'}
           </tbody>

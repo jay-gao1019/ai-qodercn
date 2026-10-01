@@ -474,11 +474,14 @@ tr:hover td { background: #F8FAFC; }
 .template-card.selected { border-color: var(--primary); box-shadow: 0 0 0 1px var(--primary); }
 
 /* v2.42 需求4/6：邮件模板与发送任务的操作工具栏，形态与客户管理的 .customers-bar 一致——
-   单行不换行、按钮比默认更紧凑；选中说明过长时省略号截断（完整文案放 title 悬停） */
+   单行不换行、按钮比默认更紧凑；选中说明过长时省略号截断（完整文案放 title 悬停）
+   v2.47 需求2.1：SMTP 配置界面加入同一套工具栏形态 */
 .search-bar.templates-bar,
-.search-bar.campaigns-bar { flex-wrap: nowrap; gap: 8px; }
+.search-bar.campaigns-bar,
+.search-bar.smtp-bar { flex-wrap: nowrap; gap: 8px; }
 .search-bar.templates-bar .btn,
-.search-bar.campaigns-bar .btn { padding: 5px 9px; font-size: 12px; }
+.search-bar.campaigns-bar .btn,
+.search-bar.smtp-bar .btn { padding: 5px 9px; font-size: 12px; }
 .bar-hint {
   flex: 0 1 auto; min-width: 0;
   overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
@@ -945,7 +948,10 @@ tr.clickable-row:hover td { background: #EFF6FF; }
   flex-wrap: wrap;
   margin-bottom: 10px;
 }
-.picker-toolbar .cpk-keyword { flex: 1 1 200px; min-width: 160px; padding: 6px 8px; font-size: 13px; }
+/* v2.47 需求1.1：关键字框宽度比 v2.43 缩小 30%。原来 flex-grow:1 会把工具栏剩余空间全部吃掉
+   （实测 1038px 视口下 336px），改为按 30% 分配后同一视口约 231px（-31%），1920 视口同样约 -30%。
+   回车即搜由 cpkKw.onkeydown 触发"查询"按钮，样式层不再影响可用性 */
+.picker-toolbar .cpk-keyword { flex: 0 1 30%; min-width: 140px; padding: 6px 8px; font-size: 13px; }
 .picker-toolbar .cust-summary { margin-left: auto; }
 
 /* 客户行距压缩（需求 2.5："记录显示间距稍微紧凑一点"） */
