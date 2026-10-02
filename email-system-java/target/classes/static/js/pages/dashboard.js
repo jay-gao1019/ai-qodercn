@@ -52,7 +52,9 @@ function DashboardPage() {
 }
 
 // 明细弹窗状态：type=customers|templates|campaigns；customer=客户发送明细钻取上下文；filters=客户统计次数筛选条件
-let dashDetail = { type: null, page: 1, pageSize: 15, search: '', customer: null, filters: emptyCustomerFilters() };
+// v2.48 需求6/7：默认每页 15 → 10（客户邮件发送统计与任务发送统计都要求 10 条/页；
+// 同一弹窗家族里的"客户邮件发送详情"共用 dashDetail.pageSize，因此也一并变成 10）
+let dashDetail = { type: null, page: 1, pageSize: 10, search: '', customer: null, filters: emptyCustomerFilters() };
 // v2.22：仪表盘内嵌"发送记录统计"面板状态
 // v2.36 需求1.3：发送记录详情默认每页 5 条（原 10 条）
 // v2.37 需求4：period 取 day/week/month/year，即面板上四个统计按钮；counts 为按钮显示的记录数
@@ -125,7 +127,7 @@ const dashTitles = {
 window.dashOpenDetail = async function(type) {
   if (!dashTitles[type]) return;
   // v2.32 需求3：默认不带任何筛选条件（filters 全空 = 查询全部结果）
-  dashDetail = { type, page: 1, pageSize: 15, search: '', customer: null, filters: emptyCustomerFilters() };
+  dashDetail = { type, page: 1, pageSize: 10, search: '', customer: null, filters: emptyCustomerFilters() };
   tplStats = { rows: [], filter: '' };
   Modal.show({
     title: dashTitles[type],
@@ -139,17 +141,6 @@ window.dashOpenDetail = async function(type) {
 
 function emptyCustomerFilters() {
   return { sent: '', failed: '', total: '' };
-}
-
-function dashCountFilterTip(f) {
-  const kw = dashDetail.search || '';
-  const conds = [['sent', '已发送'], ['failed', '发送失败'], ['total', '总计']]
-    .filter(([k]) => f[k] !== '')
-    .map(([k, label]) => `${label}次数至少 ${f[k]}`);
-  if (kw || conds.length) {
-    return `当前条件：${[kw ? `关键字“${kw}”` : '', ...conds].filter(Boolean).join(' 且 ')}`;
-  }
-  return '默认未设置任何条件，显示全部客户的发送统计';
 }
 
 /** 弹窗打开时就地更新标题（客户钻取/返回时切换） */
@@ -413,7 +404,7 @@ async function renderDashDetail() {
         <button class="btn btn-sm btn-secondary" onclick="dashDetailReset()">重置</button>
         <button class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="dashRefreshDetail()">🔄 刷新</button>
       </div>
-      <p class="cs-filter-tip">${dashCountFilterTip(f)}</p>
+      <!-- v2.48 需求6：这里的"默认未设置任何条件…"与"当前条件：…"提示行整体删除，筛选条件看输入框本身 -->
       <div class="table-wrap">
         <table>
           <thead><tr><th>客户号</th><th>姓名</th><th>邮箱</th><th>公司</th><th>已发送</th><th>发送失败</th><th>总计</th></tr></thead>
@@ -451,13 +442,12 @@ async function renderDashDetail() {
   }
 
   if (dashDetail.type === 'campaigns') {
-    const res = await api.get('/api/campaigns');
-    const rows = res.code === 0 ? (Array.isArray(res.data) ? res.data : (res.data.campaigns || [])) : [];
+    // v2.48 需求7：去掉"前往发送任务界面"与"刷新"两个按钮，列表改为服务端分页（默认 10 条/页），
+    // 分页条与"客户管理"同一组件 renderPagination；排序仍是后端的"按最近状态更新时间倒序"
+    const res = await api.get(`/api/campaigns?page=${dashDetail.page}&page_size=${dashDetail.pageSize}`);
+    const data = res.code === 0 ? (Array.isArray(res.data) ? { campaigns: res.data, total: res.data.length } : res.data) : { campaigns: [], total: 0 };
+    const rows = data.campaigns || [];
     box.innerHTML = `
-      <div style="display:flex;gap:8px;margin-bottom:10px">
-        <button class="btn btn-sm btn-primary" onclick="Modal.close();router.navigate('campaigns')">前往发送任务界面 →</button>
-        <button class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="dashRefreshDetail()">🔄 刷新</button>
-      </div>
       <div class="table-wrap">
         <table>
           <thead><tr><th>任务名称</th><th>状态</th><th>发送成功</th><th>发送失败</th><th>发送总计</th><th>开始时间</th><th>结束时间</th></tr></thead>
@@ -474,7 +464,8 @@ async function renderDashDetail() {
             </tr>`).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary)">暂无任务</td></tr>'}
           </tbody>
         </table>
-      </div>`;
+      </div>
+      <div class="pag-bar">${renderPagination({ total: data.total, page: dashDetail.page, pageSize: dashDetail.pageSize, unit: '个任务', gotoFn: 'dashDetailGoto', sizeFn: 'dashDetailSize' })}</div>`;
     return;
   }
 }
@@ -534,14 +525,14 @@ function tplStatsTableHtml() {
       </tr>`;
     });
   });
+  // v2.48 需求5：表格下方"发送成功/发送失败…排列"的口径说明文字已按要求删除（排序规则本身未变）
   return `
     <div class="table-wrap">
       <table class="tpl-stats-table">
         <thead><tr><th>模板名称</th><th>关联任务</th><th>第几次使用该模板</th><th>发送成功</th><th>发送失败</th><th>发送总数</th><th>发送开始时间</th><th>发送完成时间</th></tr></thead>
         <tbody>${body || '<tr><td colspan="8" style="text-align:center;color:var(--text-secondary)">暂无模板</td></tr>'}</tbody>
       </table>
-    </div>
-    <p style="font-size:12px;color:var(--text-secondary);margin-top:8px">“发送成功/发送失败”为该模板在每个任务下各收件人的最终状态，“发送总数”统计每次实际发送动作（含重发与失败尝试），数值为 0 时显示“-”，模板按最后修改时间从近到远排列，同一模板的任务按发送时间从近到远排列、没有发送过的任务排在最前。</p>`;
+    </div>`;
 }
 
 /** 切换模板筛选：只重绘表格，不重新请求接口 */

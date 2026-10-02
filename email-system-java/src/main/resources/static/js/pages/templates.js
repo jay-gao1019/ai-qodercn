@@ -5,9 +5,9 @@ function TemplatesPage() {
       <button class="btn btn-primary" id="btnAddTemplate">+ 创建模板</button>
     </div>
     <!-- v2.42 需求4/5：模板操作从每张卡片的行内按钮收敛到一条工具栏（形态同客户管理的 .customers-bar），
-         单击选中某条模板后，这些按钮才对那条记录生效 -->
+         单击选中某条模板后，这些按钮才对那条记录生效
+         v2.48 需求2：工具栏里的提示文字（#tplBarHint）整体删除，选中状态只靠卡片高亮 -->
     <div class="search-bar templates-bar">
-      <span class="bar-hint" id="tplBarHint">单击下方模板卡片即可选中</span>
       <button class="btn btn-sm btn-secondary" id="btnTplPreview" disabled>预览</button>
       <button class="btn btn-sm btn-secondary" id="btnTplEdit" disabled>编辑</button>
       <button class="btn btn-sm btn-secondary" id="btnTplDuplicate" disabled>复制</button>
@@ -106,7 +106,7 @@ function findTemplateById(id) {
   return templateRows.find(t => t.id === id) || null;
 }
 
-/** 工具栏状态：未选中模板时全部置灰，选中后启用并显示模板名 */
+/** 工具栏状态：未选中模板时全部置灰，选中后启用（v2.48 需求2 起工具栏不再有提示文字） */
 function updateTemplateToolbar() {
   const t = selectedTemplateId != null ? findTemplateById(selectedTemplateId) : null;
   const buttons = ['btnTplPreview', 'btnTplEdit', 'btnTplDuplicate', 'btnTplTestSend', 'btnTplDelete'];
@@ -114,17 +114,6 @@ function updateTemplateToolbar() {
     const el = document.getElementById(bid);
     if (el) el.disabled = !t;
   });
-  const hint = document.getElementById('tplBarHint');
-  if (!hint) return;
-  /** 选中即可，不需要进行提示，提示内容会挤走功能按钮，影响功能按钮的位置 **
-  if (t) {
-    hint.textContent = `已选中：${t.name}`;
-    hint.title = `已选中模板「${t.name}」，工具栏按钮将作用于该模板`;
-  } else {
-    hint.textContent = '单击下方模板卡片即可选中';
-    hint.title = '';
-  }
-  */
 }
 
 /** 当前选中模板的 id；未选中时提示并返回 null，供各按钮回调复用 */

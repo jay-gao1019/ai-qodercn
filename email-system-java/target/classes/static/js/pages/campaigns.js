@@ -8,9 +8,9 @@ function CampaignsPage() {
          单击选中某条任务后，这些按钮才对那条记录生效；"暂停"即原"停止"（走 /{id}/cancel）。
          v2.43 需求5.1：工具栏不显示"已选中：任务名称"；需求5.2：按选中任务的状态直接置灰不可用按钮。
          v2.45 需求1.1：原"发送"和"继续发送"两枚按钮合并成一枚 #btnCampStart，
-         选中的任务没执行过发送时显示"发送"（走 /{id}/start），发过且成功率不为 100% 时显示"继续发送"（走 /{id}/resume） -->
+         选中的任务没执行过发送时显示"发送"（走 /{id}/start），发过且成功率不为 100% 时显示"继续发送"（走 /{id}/resume）
+         v2.48 需求1：工具栏里的提示文字（#campBarHint）整体删除，选中状态只靠行底色高亮 -->
     <div class="search-bar campaigns-bar">
-      <span class="bar-hint" id="campBarHint">单击下方任务行即可选中</span>
       <button class="btn btn-sm btn-secondary" id="btnCampStart" disabled>发送</button>
       <button class="btn btn-sm btn-secondary" id="btnCampPause" disabled>暂停</button>
       <button class="btn btn-sm btn-secondary" id="btnCampResendAll" disabled>全部重发</button>
@@ -313,9 +313,9 @@ function startPolling() {
   }, 3000);
 }
 
-/** 详情视图打开时按最新任务状态就地刷新（不抢滚动位置） */
+/** 详情视图打开时按最新任务状态就地刷新（v2.49 需求3：整页已无任何自动滚动，滚动位置只由用户手动控制） */
 function refreshOpenDetail() {
-  if (currentDetailCampaignId) loadLogPage(currentDetailCampaignId, { keepScroll: true });
+  if (currentDetailCampaignId) loadLogPage(currentDetailCampaignId);
 }
 
 let logPage = 1;
@@ -344,7 +344,7 @@ window.viewCampaignDetail = async function(id) {
   attCustomerId = null;
   attCustomerEmail = '';
   attLogInfo = null;
-  loadLogPage(id, {}, campaign);
+  loadLogPage(id, campaign);
 };
 
 /** 点击状态栏条目：按该状态筛选发送记录；v2.25 起再次点击同一条目取消筛选（显示全部） */
@@ -356,7 +356,7 @@ window.setDetailStatusFilter = function(s) {
   attCustomerId = null;
   attCustomerEmail = '';
   attLogInfo = null;
-  loadLogPage(currentDetailCampaignId, { keepScroll: true });
+  loadLogPage(currentDetailCampaignId);
 };
 
 window.gotoCampaignLogPage = function(p) {
@@ -399,9 +399,8 @@ function applyRowFilterSendDetail(tr) {
     error: tr.dataset.logError || '',
   };
   attPage = 1;
+  // v2.49 需求3：点选记录只刷新"发送详情"内容，不再 scrollIntoView 把视口拉过去
   loadSendDetail(currentDetailCampaignId);
-  const h = document.getElementById('campaignSendDetail');
-  if (h) h.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
 }
 
 window.clearSendDetailFilter = function() {
@@ -437,10 +436,10 @@ window.rowShowLogCustomer = function(event) {
   clearTimeout(logRowFilterTimer);
   const cid = parseInt(event.currentTarget.dataset.cust, 10);
   if (!cid) return;
-  window.showCustomerDetail(cid, () => loadLogPage(currentDetailCampaignId, { keepScroll: true }));
+  window.showCustomerDetail(cid, () => loadLogPage(currentDetailCampaignId));
 };
 
-async function loadLogPage(campaignId, opts, campaign) {
+async function loadLogPage(campaignId, campaign) {
   if (!campaign) {
     campaign = await findCampaignById(campaignId);
     if (!campaign) return;
@@ -518,14 +517,14 @@ async function loadLogPage(campaignId, opts, campaign) {
         })}
       </div>
     </div>
-    <div class="card">
+    <div class="card" id="campaignSendDetailCard"${attCustomerId ? '' : ' style="display:none"'}>
       <h3 style="margin-bottom:6px">发送详情</h3>
       <div id="campaignSendDetail"><div style="text-align:center;color:var(--text-secondary);padding:16px">加载中...</div></div>
     </div>
   `;
 
+  // v2.49 需求2：未点选发送记录时整张"发送详情"卡片隐藏；需求3：不再 scrollIntoView 抢滚动位置
   loadSendDetail(campaignId);
-  if (!opts || !opts.keepScroll) detail.scrollIntoView({ behavior: 'smooth' });
 }
 
 /**
@@ -534,13 +533,16 @@ async function loadLogPage(campaignId, opts, campaign) {
  */
 async function loadSendDetail(campaignId) {
   const box = document.getElementById('campaignSendDetail');
+  const card = document.getElementById('campaignSendDetailCard');
   if (!box || !campaignId) return;
 
-  // v2.32 需求4：默认不查询也不显示内容，只有点击某条"发送记录"后才呈现该记录的发送详情
+  // v2.49 需求2（取代 v2.32 需求4 的"占位提示"形态）：未点选发送记录时整张"发送详情"卡片隐藏，也不发查询
   if (!attCustomerId) {
-    box.innerHTML = '<div class="sd-placeholder">点击上方「发送记录」中的某一条记录，这里只显示该条记录的发送详情</div>';
+    box.innerHTML = '';
+    if (card) card.style.display = 'none';
     return;
   }
+  if (card) card.style.display = '';
 
   const statusParam = detailStatus ? `&status=${detailStatus}` : '';
   const custParam = attCustomerId ? `&customer_id=${attCustomerId}` : '';

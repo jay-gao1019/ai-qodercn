@@ -5,9 +5,9 @@ function SMTPPage() {
       <button class="btn btn-primary" id="btnAddSmtp">+ 添加配置</button>
     </div>
     <!-- v2.47 需求2.1/2.2：原每行的"测试/删除"收敛到这条工具栏（形态同客户管理/模板/任务），
-         单击选中某条配置后才可用；"编辑"改成双击列表行触发 -->
+         单击选中某条配置后才可用；"编辑"改成双击列表行触发
+         v2.48 需求3：工具栏里的提示文字整体删除，选中状态只靠行底色高亮 -->
     <div class="search-bar smtp-bar">
-      <span class="bar-hint">单击选中一条配置后可测试或删除，双击进入编辑</span>
       <button class="btn btn-sm btn-secondary" id="btnSmtpTest" disabled>测试</button>
       <button class="btn btn-sm btn-danger" id="btnSmtpDelete" disabled>删除</button>
     </div>
@@ -74,8 +74,7 @@ function smtpFormHTML(cfg = {}) {
     
     <div class="form-group">
       <label class="checkbox-label"><input type="checkbox" id="smtpDefault" ${cfg.is_default ? 'checked' : ''}> 设为默认</label>
-      <!-- v2.47 需求2.3：默认配置全局唯一，勾选即接管；库里只剩一条配置时它必然是默认 -->
-      <div style="font-size:12px;color:var(--text-secondary);margin-top:4px">最多只能有一个默认配置；勾选本项后原默认配置会自动取消；只剩一条配置时该配置自动作为默认。</div>
+      <!-- v2.48 需求4：这里的说明文字已按要求删除；"默认全局唯一 + 只剩一条时自动为默认"仍由后端 enforceSoleConfigIsDefault 保证 -->
     </div>
   `;
 }

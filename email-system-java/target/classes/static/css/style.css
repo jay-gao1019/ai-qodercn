@@ -111,23 +111,29 @@ body {
      v2.38 需求1.1：用户要求在这一行（实测 62.2px）基础上"再增加 15%"，
      于是内边距 10→11.5px、标签 12→14px、数值 20→23px、图标 32→36px。
      v2.39 需求1：在此基础上"再增加 15%"（71.4px → 82.1px），
-     内边距 11.5→13.45px、标签 14→16px、数值 23→26.5px、图标 36→41.4px，
-     即四个尺寸量各自同比例放大，卡片仍只有一行"图标 + 标签 + 数字" */
-  padding: 13.45px 16px;
+     内边距 11.5→13.45px、标签 14→16px、数值 23→26.5px、图标 36→41.4px。
+     v2.48 需求8：再 +40%（82.1px → 实测 114.9px），四个量同比例 ×1.4：
+     内边距 13.45→18.83px、标签 16→22.4px、数值 26.5→37.1px、图标 41.4→57.96px（圆角与字号同步），
+     图标与文字间距 10→14px。
+     v2.49 需求1：用户反馈"太大、与界面其他内容不协调"，图标/数值/文字再调小 40%（逐项 ×0.6），
+     内边距 18.83→11.3px、标签 22.4→13.44px、数值 37.1→22.26px、图标 57.96→34.78px
+     （圆角 12.6→7.56px、字号 28.98→17.39px）、间距 14→8.4px、标签下边距 2→1.2px，
+     卡片高 114.9px → 68.9px（−40%） */
+  padding: 11.3px 16px;
   box-shadow: 0 1px 3px rgba(0,0,0,0.06);
   display: flex;
   flex-direction: column;
   justify-content: center;
 }
 /* v2.36 需求1.4：数字放在图标右边——图标在左，标签与数字在图标右侧上下排列 */
-.stat-card-main { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.stat-card-main { display: flex; align-items: center; gap: 8.4px; min-width: 0; }
 .stat-text { min-width: 0; }
-.stat-label { font-size: 16px; line-height: 1.3; color: var(--text-secondary); margin-bottom: 1px; }
-.stat-value { font-size: 26.5px; font-weight: 700; color: var(--text); line-height: 1.2; }
+.stat-label { font-size: 13.44px; line-height: 1.3; color: var(--text-secondary); margin-bottom: 1.2px; }
+.stat-value { font-size: 22.26px; font-weight: 700; color: var(--text); line-height: 1.2; }
 .stat-icon {
-  width: 41.4px; height: 41.4px; border-radius: 9px; flex: 0 0 auto;
+  width: 34.78px; height: 34.78px; border-radius: 7.56px; flex: 0 0 auto;
   display: flex; align-items: center; justify-content: center;
-  font-size: 20.7px;
+  font-size: 17.39px;
 }
 
 /* v2.37 需求4："发送记录统计"的当日/本周/本月/本年四个统计按钮，
@@ -482,11 +488,8 @@ tr:hover td { background: #F8FAFC; }
 .search-bar.templates-bar .btn,
 .search-bar.campaigns-bar .btn,
 .search-bar.smtp-bar .btn { padding: 5px 9px; font-size: 12px; }
-.bar-hint {
-  flex: 0 1 auto; min-width: 0;
-  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
-  font-size: 12px; color: var(--text-secondary);
-}
+/* v2.48 需求1/2/3：三处工具栏提示文字（.bar-hint）按用户要求删除，四条页头工具栏现在只放按钮，
+   选中状态一律靠行/卡片底色高亮；客户管理页的选中提示条用的是另一套 .banner-conds 样式，不受影响 */
 /* v2.42 需求6：任务列表单击选中行的高亮底色 */
 tr.row-selected td { background: #DBEAFE; }
 
@@ -1005,14 +1008,14 @@ tr.clickable-row:hover td { background: #EFF6FF; }
 /* 状态栏第四段"待发送" */
 .statbar-item .statbar-pending { color: var(--warning); }
 
-/* 发送详情未点选记录时的占位提示（需求4） */
-.sd-placeholder { text-align: center; color: var(--text-secondary); font-size: 13px; padding: 20px 8px; }
+/* v2.49 需求2：未点选发送记录时改为隐藏整张"发送详情"卡片，
+   原先显示在卡片内的 .sd-placeholder 占位提示已不再需要，样式随之移除 */
 
 /* 客户邮件发送统计筛选条（v2.32 需求3 / v2.33 需求4）：关键字 + 三个"至少次数"条件 + 搜索/重置 */
 .cs-filter-bar { margin-bottom: 8px; }
 .cs-field { display: inline-flex; align-items: center; gap: 6px; font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
 .cs-num { width: 74px; padding: 6px 8px; font-size: 13px; }
-.cs-filter-tip { margin: 0 0 12px; font-size: 12px; color: var(--text-secondary); }
+/* v2.48 需求6：客户邮件发送统计的 .cs-filter-tip 条件说明行已删除，样式随之移除（.cs-filter-bar 与 .cs-field 仍在用） */
 
 
 /* ============================================================
