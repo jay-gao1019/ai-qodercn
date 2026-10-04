@@ -321,6 +321,10 @@ tr:hover td { background: #F8FAFC; }
 
 .modal-title { font-size: 18px; font-weight: 700; margin-bottom: 20px; flex: 0 0 auto; }
 .modal-actions { display: flex; justify-content: flex-end; gap: 12px; margin-top: 20px; flex: 0 0 auto; }
+/* v2.51 需求1：topClose 弹窗（模板/任务发送统计）把关闭按钮放在标题行右侧，底部不再有按钮栏 */
+.modal-title-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 20px; flex: 0 0 auto; }
+.modal-title-row .modal-title { margin-bottom: 0; }
+.modal-title-row .btn { flex: 0 0 auto; }
 
 /* Progress bar */
 .progress-bar {
@@ -993,11 +997,42 @@ tr.clickable-row:hover td { background: #EFF6FF; }
 /* 模板发送统计（v2.31 需求1）：顶部模板筛选下拉框 + 逐行表格 */
 .tpl-stats-bar { display: flex; align-items: center; gap: 10px; margin-bottom: 10px; }
 .tpl-stats-bar label { font-size: 13px; color: var(--text-secondary); white-space: nowrap; }
-.tpl-stats-bar .btn { margin-left: auto; }
 .tpl-stats-filter { width: 220px; flex: 0 0 auto; }
-/* v2.33 需求1：整体宽度与"客户邮件发送统计"一致（同一个弹窗容器内 width:100%，不再撑出横向滚动） */
+/* v2.33 需求1：整体宽度与"客户邮件发送统计"一致（同一个弹窗容器内 width:100%，不再撑出横向滚动）
+   【自 v2.50 需求2 起单元格改为不换行，窗口宽度小于表格最小宽度时横向滚动交回 .table-wrap 处理】 */
 .tpl-stats-table { width: 100%; min-width: 0; }
 .tpl-stats-table .tpl-stats-time { font-size: 13px; white-space: nowrap; }
+
+/* ============================================================
+   v2.50 需求1/2：模板发送统计与任务发送统计共用统一分页工具栏
+   v2.51 需求1/2：两个弹窗去掉"刷新"按钮、"关闭"移到标题行；弹窗尺寸改为固定
+   v2.52 需求2/3/5：三个统计弹窗（客户 / 模板 / 任务发送统计，含钻取到的单客户"邮件发送详情"）
+   一律默认每页 10 条、共用同一个固定尺寸；行尺寸改回与「客户邮件发送统计」相同（见下），
+   固定高度取自本轮在 1560 宽容器下实测的"10 条自然高"较大值（客户统计 612px，含 56px 筛选行；
+   模板 601.2px / 任务 553.6px 更矮），612 + 8px 余量 = 620px，使三个弹窗默认 10 条/页都不出纵向滚动条；
+   数据行数多于固定高度时（例如切到 15 或 20 条/页）正文区（.modal-body）内部滚动，
+   弹窗本身尺寸不变（需求5"界面高、宽都按初始，不要根据内容调整"）。
+   更矮的窗口由 max-height: 96vh 收住。
+   ============================================================ */
+.modal-box.wide.stats {
+  width: min(92vw, 1560px);
+  height: 620px;         /* 固定：切换页码、数据行数、三个弹窗之间都不改变弹窗尺寸 */
+  max-height: 96vh;      /* 覆盖 .modal-box.wide 的 80vh，避免矮窗口把弹窗顶出屏幕 */
+  padding: 14px 28px;    /* 上下留白收紧，把高度让给列表本身 */
+}
+.modal-box.wide.stats .modal-title-row { margin-bottom: 10px; }
+.modal-box.wide.stats .pag-bar { margin-top: 8px; }
+.modal-box.wide.stats .tpl-stats-bar { margin-bottom: 6px; }
+/* 两张统计表格（模板 / 任务发送统计）的行尺寸：v2.52 需求1 要求"每行的高度使用『客户邮件发送统计』
+   列表每行的高度"，因此撤销 v2.51 的 `padding: 8px 12px; font-size: 13px` 自定义，改为直接吃全局
+   `th, td { padding: 10px 16px; font-size: 14px }`（客户统计那张表就是全局尺寸），
+   本条只保留"单元格不换行"（配合下面 ds-clip 的截断），避免撑出横向滚动 */
+.dash-stats-table th, .dash-stats-table td { white-space: nowrap; }
+/* 状态徽章是任务发送统计行高偏高的来源（v2.52 实测：徽章行内盒 19.2px + 基线对齐，整行 41.2px，
+   比同字形的其他两列高 1.2~2px），收紧内边距与字号并让行盒等于文字本身，使三张表行高同源 */
+.dash-stats-table .badge { padding: 2px 8px; font-size: 11px; line-height: 1; }
+/* 名称类长文本（模板名、任务名）封顶截断，hover 用 title 看全文，避免个别长名称把表格撑爆 */
+.dash-stats-table td.ds-clip { max-width: 260px; overflow: hidden; text-overflow: ellipsis; }
 
 /* 仪表盘按日无发送数据时的空态（v2.30 需求8：去掉欢迎标题、放大日期那行） */
 .welcome-card .welcome-date { font-size: 20px; line-height: 1.5; margin-bottom: 10px; }

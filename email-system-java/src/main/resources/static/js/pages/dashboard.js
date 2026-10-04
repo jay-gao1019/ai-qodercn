@@ -54,7 +54,14 @@ function DashboardPage() {
 // 明细弹窗状态：type=customers|templates|campaigns；customer=客户发送明细钻取上下文；filters=客户统计次数筛选条件
 // v2.48 需求6/7：默认每页 15 → 10（客户邮件发送统计与任务发送统计都要求 10 条/页；
 // 同一弹窗家族里的"客户邮件发送详情"共用 dashDetail.pageSize，因此也一并变成 10）
-let dashDetail = { type: null, page: 1, pageSize: 10, search: '', customer: null, filters: emptyCustomerFilters() };
+// v2.50 需求2：默认每页条数改为按弹窗类型给值——"模板发送统计""任务发送统计"15 条/页；
+// 【自 v2.52 需求2 起三个弹窗一律回到 10 条/页，本轮需求把三者并列点名，因此不再需要按类型分档】
+const DASH_DEFAULT_PAGE_SIZE = { customers: 10, templates: 10, campaigns: 10 };
+// v2.52 需求2：三个统计弹窗（含钻取到的单客户"邮件发送详情"）的每页条数候选去掉"5条/页"。
+// 公共组件 renderPagination 的默认候选 [5,10,15,20] 不动——客户管理 / 邮件模板 / 发送任务 /
+// 仪表盘内嵌"发送记录统计"仍用它，只有本弹窗家族按这里传参收窄。
+const DASH_PAGE_SIZE_OPTIONS = [10, 15, 20];
+let dashDetail = { type: null, page: 1, pageSize: DASH_DEFAULT_PAGE_SIZE.customers, search: '', customer: null, filters: emptyCustomerFilters() };
 // v2.22：仪表盘内嵌"发送记录统计"面板状态
 // v2.36 需求1.3：发送记录详情默认每页 5 条（原 10 条）
 // v2.37 需求4：period 取 day/week/month/year，即面板上四个统计按钮；counts 为按钮显示的记录数
@@ -127,11 +134,17 @@ const dashTitles = {
 window.dashOpenDetail = async function(type) {
   if (!dashTitles[type]) return;
   // v2.32 需求3：默认不带任何筛选条件（filters 全空 = 查询全部结果）
-  dashDetail = { type, page: 1, pageSize: 10, search: '', customer: null, filters: emptyCustomerFilters() };
+  dashDetail = { type, page: 1, pageSize: DASH_DEFAULT_PAGE_SIZE[type], search: '', customer: null, filters: emptyCustomerFilters() };
   tplStats = { rows: [], filter: '' };
   Modal.show({
     title: dashTitles[type],
     wide: true,
+    // v2.50 需求2：模板/任务发送统计用统一尺寸的统计弹窗；v2.51 需求2：改为固定宽高、不随数据行数伸缩；
+    // v2.52 需求3/5：三个统计弹窗（含钻取到的单客户"邮件发送详情"）并入同一套固定尺寸，
+    // 因此不再按 type 区分——高度按"每页 10 条 × 与客户统计相同的行高"算出，默认不出滚动条
+    statsModal: true,
+    // v2.51 需求1：两个统计弹窗的"关闭"按钮移到标题行右侧；v2.52 需求3：客户统计同样用标题行关闭
+    topClose: true,
     content: '<div id="dashDetail" style="color:var(--text-secondary)">加载中...</div>',
     cancelText: '关闭',
     hideConfirm: true,
@@ -174,8 +187,6 @@ window.dashDetailReset = function() {
   dashDetail.page = 1;
   renderDashDetail();
 };
-
-window.dashRefreshDetail = function() { renderDashDetail(); };
 
 /* --------- 发送记录统计面板（v2.22 内嵌视图；v2.37 需求4 改为四个统计按钮切换口径） --------- */
 
@@ -355,7 +366,6 @@ async function renderCustomerSendDetail(box, fmt) {
   box.innerHTML = `
     <div class="search-bar" style="margin-bottom:12px">
       <button class="btn btn-sm btn-secondary" onclick="dashBackToCustomerStats()">← 返回客户列表</button>
-      <button class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="dashRefreshDetail()">🔄 刷新</button>
     </div>
     <div class="table-wrap">
       <table>
@@ -370,7 +380,7 @@ async function renderCustomerSendDetail(box, fmt) {
         </tbody>
       </table>
     </div>
-    <div class="pag-bar">${renderPagination({ total: res.data.total, page: dashDetail.page, pageSize: dashDetail.pageSize, unit: '条记录', gotoFn: 'dashDetailGoto', sizeFn: 'dashDetailSize' })}</div>`;
+    <div class="pag-bar">${renderPagination({ total: res.data.total, page: dashDetail.page, pageSize: dashDetail.pageSize, unit: '条记录', pageSizes: DASH_PAGE_SIZE_OPTIONS, gotoFn: 'dashDetailGoto', sizeFn: 'dashDetailSize' })}</div>`;
 }
 
 async function renderDashDetail() {
@@ -402,7 +412,9 @@ async function renderDashDetail() {
         ${numField('csTotal', '总发送次数', escHtml(f.total))}
         <button class="btn btn-sm btn-secondary" onclick="dashDetailSearch()">搜索</button>
         <button class="btn btn-sm btn-secondary" onclick="dashDetailReset()">重置</button>
-        <button class="btn btn-sm btn-secondary" style="margin-left:auto" onclick="dashRefreshDetail()">🔄 刷新</button>
+        <!-- v2.52 需求4：这里右侧靠 margin-left:auto 挂着的"🔄 刷新"按钮按要求删除
+            （连同单客户"邮件发送详情"返回行上的那一枚），window.dashRefreshDetail 因再无调用点而整体删除；
+            数据要重新查询请用"搜索 / 重置"或重新点开卡片弹窗 -->
       </div>
       <!-- v2.48 需求6：这里的"默认未设置任何条件…"与"当前条件：…"提示行整体删除，筛选条件看输入框本身 -->
       <div class="table-wrap">
@@ -420,7 +432,7 @@ async function renderDashDetail() {
           </tbody>
         </table>
       </div>
-      <div class="pag-bar">${renderPagination({ total: res.data.total, page: dashDetail.page, pageSize: dashDetail.pageSize, unit: '位客户', gotoFn: 'dashDetailGoto', sizeFn: 'dashDetailSize' })}</div>`;
+      <div class="pag-bar">${renderPagination({ total: res.data.total, page: dashDetail.page, pageSize: dashDetail.pageSize, unit: '位客户', pageSizes: DASH_PAGE_SIZE_OPTIONS, gotoFn: 'dashDetailGoto', sizeFn: 'dashDetailSize' })}</div>`;
     return;
   }
 
@@ -428,6 +440,10 @@ async function renderDashDetail() {
     const res = await api.get('/api/dashboard/template-stats');
     if (res.code !== 0) { box.innerHTML = '加载失败'; return; }
     // v2.31 需求1：模板名称逐行显示（不再合并单元格），顶部下拉框按模板筛选，默认全部模板
+    // v2.50 需求1：接口仍一次返回全部"模板 × 任务"行，但列表按页切片显示，
+    // 分页工具栏与"任务发送统计"完全相同（同一个 renderPagination、同一组每页条数可选项）
+    // v2.51 需求1：这里的"🔄 刷新"按钮已按要求删除（"任务发送统计"自 v2.48 需求7 起就没有刷新按钮），
+    // 弹窗的关闭入口改为标题行右侧的"关闭"
     tplStats.rows = res.data || [];
     box.innerHTML = `
       <div class="tpl-stats-bar">
@@ -435,25 +451,25 @@ async function renderDashDetail() {
         <select class="form-input tpl-stats-filter" id="tplStatsFilter" onchange="tplStatsSetFilter(this.value)">
           <option value="">全部模板</option>${tplStatsOptions()}
         </select>
-        <button class="btn btn-sm btn-secondary" onclick="dashRefreshDetail()">🔄 刷新</button>
       </div>
-      <div id="tplStatsTable">${tplStatsTableHtml()}</div>`;
+      <div id="tplStatsPane">${tplStatsPaneHtml()}</div>`;
     return;
   }
 
   if (dashDetail.type === 'campaigns') {
-    // v2.48 需求7：去掉"前往发送任务界面"与"刷新"两个按钮，列表改为服务端分页（默认 10 条/页），
+    // v2.48 需求7：去掉"前往发送任务界面"与"刷新"两个按钮，列表改为服务端分页，
     // 分页条与"客户管理"同一组件 renderPagination；排序仍是后端的"按最近状态更新时间倒序"
+    // 【自 v2.52 需求2 起默认条数由 15 回到 10，候选去掉 5 → 现为 10/15/20】
     const res = await api.get(`/api/campaigns?page=${dashDetail.page}&page_size=${dashDetail.pageSize}`);
     const data = res.code === 0 ? (Array.isArray(res.data) ? { campaigns: res.data, total: res.data.length } : res.data) : { campaigns: [], total: 0 };
     const rows = data.campaigns || [];
     box.innerHTML = `
       <div class="table-wrap">
-        <table>
+        <table class="dash-stats-table">
           <thead><tr><th>任务名称</th><th>状态</th><th>发送成功</th><th>发送失败</th><th>发送总计</th><th>开始时间</th><th>结束时间</th></tr></thead>
           <tbody>
             ${rows.length ? rows.map(c => `<tr>
-              <td>${c.name}</td><td>${campaignStatusBadge(c)}</td>
+              <td class="ds-clip" title="${escHtml(c.name)}">${escHtml(c.name)}</td><td>${campaignStatusBadge(c)}</td>
               <td style="color:var(--success)">${numOrDash(c.sent)}</td>
               <td style="color:var(--danger)">${numOrDash(c.failed)}</td>
               <td>${numOrDash(c.total)}</td>
@@ -465,7 +481,7 @@ async function renderDashDetail() {
           </tbody>
         </table>
       </div>
-      <div class="pag-bar">${renderPagination({ total: data.total, page: dashDetail.page, pageSize: dashDetail.pageSize, unit: '个任务', gotoFn: 'dashDetailGoto', sizeFn: 'dashDetailSize' })}</div>`;
+      <div class="pag-bar">${renderPagination({ total: data.total, page: dashDetail.page, pageSize: dashDetail.pageSize, unit: '个任务', pageSizes: DASH_PAGE_SIZE_OPTIONS, gotoFn: 'dashDetailGoto', sizeFn: 'dashDetailSize' })}</div>`;
     return;
   }
 }
@@ -507,39 +523,53 @@ function tplStatsGroups() {
   return list;
 }
 
-function tplStatsTableHtml() {
+/** v2.50 需求1：先按分组顺序摊平成"模板 × 任务"行，再按当前页切片；
+ *  total 为摊平后的总行数（分页条文案与之一致），刷新后行数变少时把页码收敛到最后一页 */
+function tplStatsPagedRows() {
+  const flat = [];
+  tplStatsGroups().forEach(g => g.rows.forEach(r => flat.push(r)));
+  const totalPages = Math.max(1, Math.ceil(flat.length / dashDetail.pageSize));
+  if (dashDetail.page > totalPages) dashDetail.page = totalPages;
+  const start = (dashDetail.page - 1) * dashDetail.pageSize;
+  return { rows: flat.slice(start, start + dashDetail.pageSize), total: flat.length };
+}
+
+/** 表格 + 分页工具栏：与"任务发送统计"同一个 renderPagination、同一组每页条数可选项 */
+function tplStatsPaneHtml() {
+  const paged = tplStatsPagedRows();
+  return `${tplStatsTableHtml(paged.rows)}
+    <div class="pag-bar">${renderPagination({ total: paged.total, page: dashDetail.page, pageSize: dashDetail.pageSize, unit: '行', pageSizes: DASH_PAGE_SIZE_OPTIONS, gotoFn: 'dashDetailGoto', sizeFn: 'dashDetailSize' })}</div>`;
+}
+
+function tplStatsTableHtml(rows) {
   // v2.34 需求2：三个次数为 0 时用"-"占位，避免满屏的 0 干扰阅读
   const num = numOrDash;
-  let body = '';
-  tplStatsGroups().forEach(g => {
-    g.rows.forEach(r => {
-      body += `<tr>
-        <td>${escHtml(r.template_name)}</td>
-        <td>${r.campaign_name ? escHtml(r.campaign_name) : '<span style="color:var(--text-secondary)">未关联任务</span>'}</td>
+  const body = (rows || []).map(r => `<tr>
+        <td class="ds-clip" title="${escHtml(r.template_name)}">${escHtml(r.template_name)}</td>
+        <td class="ds-clip" title="${escHtml(r.campaign_name || '')}">${r.campaign_name ? escHtml(r.campaign_name) : '<span style="color:var(--text-secondary)">未关联任务</span>'}</td>
         <td>${r.template_use_no ? `第 ${r.template_use_no} 次` : '-'}</td>
         <td style="color:var(--success)">${num(r.sent_count)}</td>
         <td style="color:var(--danger)">${num(r.failed_count)}</td>
         <td><strong>${num(r.send_times)}</strong></td>
         <td class="tpl-stats-time">${fmtDateTime(r.campaign_started_at)}</td>
         <td class="tpl-stats-time">${fmtDateTime(r.campaign_finished_at)}</td>
-      </tr>`;
-    });
-  });
+      </tr>`).join('');
   // v2.48 需求5：表格下方"发送成功/发送失败…排列"的口径说明文字已按要求删除（排序规则本身未变）
   return `
     <div class="table-wrap">
-      <table class="tpl-stats-table">
+      <table class="tpl-stats-table dash-stats-table">
         <thead><tr><th>模板名称</th><th>关联任务</th><th>第几次使用该模板</th><th>发送成功</th><th>发送失败</th><th>发送总数</th><th>发送开始时间</th><th>发送完成时间</th></tr></thead>
         <tbody>${body || '<tr><td colspan="8" style="text-align:center;color:var(--text-secondary)">暂无模板</td></tr>'}</tbody>
       </table>
     </div>`;
 }
 
-/** 切换模板筛选：只重绘表格，不重新请求接口 */
+/** 切换模板筛选：回到第 1 页，只重绘表格与分页条，不重新请求接口 */
 window.tplStatsSetFilter = function(v) {
   tplStats.filter = v || '';
-  const host = document.getElementById('tplStatsTable');
-  if (host) host.innerHTML = tplStatsTableHtml();
+  dashDetail.page = 1;
+  const host = document.getElementById('tplStatsPane');
+  if (host) host.innerHTML = tplStatsPaneHtml();
 };
 
 function todayStr() {

@@ -8,39 +8,25 @@ Standard Commons Logging discovery in action with spring-jcl: please remove comm
  =========|_|==============|___/=/_/_/_/
  :: Spring Boot ::                (v3.2.5)
 
-2026-10-02T21:13:25.433+08:00  INFO 32156 --- [           main] com.emailsystem.EmailSystemApplication   : Starting EmailSystemApplication v1.0.0 using Java 18.0.2 with PID 32156 (D:\jay\外贸邮件系统\邮件系统2\email-system-java\target\email-system-1.0.0.jar started by mandy in D:\jay\外贸邮件系统\邮件系统2\email-system-java)
-2026-10-02T21:13:25.436+08:00  INFO 32156 --- [           main] com.emailsystem.EmailSystemApplication   : No active profile set, falling back to 1 default profile: "default"
-2026-10-02T21:13:27.454+08:00  INFO 32156 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8000 (http)
-2026-10-02T21:13:27.488+08:00  INFO 32156 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
-2026-10-02T21:13:27.489+08:00  INFO 32156 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.20]
-2026-10-02T21:13:27.552+08:00  INFO 32156 --- [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
-2026-10-02T21:13:27.555+08:00  INFO 32156 --- [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 2002 ms
+2026-10-04T13:04:38.605+08:00  INFO 28848 --- [           main] com.emailsystem.EmailSystemApplication   : Starting EmailSystemApplication v1.0.0 using Java 18.0.2 with PID 28848 (D:\jay\外贸邮件系统\邮件系统2\email-system-java\target\email-system-1.0.0.jar started by mandy in D:\jay\外贸邮件系统\邮件系统2\email-system-java)
+2026-10-04T13:04:38.607+08:00  INFO 28848 --- [           main] com.emailsystem.EmailSystemApplication   : No active profile set, falling back to 1 default profile: "default"
+2026-10-04T13:04:40.560+08:00  INFO 28848 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat initialized with port 8000 (http)
+2026-10-04T13:04:40.576+08:00  INFO 28848 --- [           main] o.apache.catalina.core.StandardService   : Starting service [Tomcat]
+2026-10-04T13:04:40.576+08:00  INFO 28848 --- [           main] o.apache.catalina.core.StandardEngine    : Starting Servlet engine: [Apache Tomcat/10.1.20]
+2026-10-04T13:04:40.640+08:00  INFO 28848 --- [           main] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring embedded WebApplicationContext
+2026-10-04T13:04:40.640+08:00  INFO 28848 --- [           main] w.s.c.ServletWebServerApplicationContext : Root WebApplicationContext: initialization completed in 1897 ms
 Standard Commons Logging discovery in action with spring-jcl: please remove commons-logging.jar from classpath in order to avoid potential conflicts
-2026-10-02T21:13:27.748+08:00  INFO 32156 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
-2026-10-02T21:13:28.026+08:00  INFO 32156 --- [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@4c19d42e
-2026-10-02T21:13:28.036+08:00  INFO 32156 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
+2026-10-04T13:04:40.806+08:00  INFO 28848 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Starting...
+2026-10-04T13:04:41.045+08:00  INFO 28848 --- [           main] com.zaxxer.hikari.pool.HikariPool        : HikariPool-1 - Added connection com.mysql.cj.jdbc.ConnectionImpl@6ac4c3f7
+2026-10-04T13:04:41.061+08:00  INFO 28848 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Start completed.
  _ _   |_  _ _|_. ___ _ |    _ 
 | | |\/|_)(_| | |_\  |_)||_|_\ 
      /               |         
                         3.5.7 
-2026-10-02T21:13:29.566+08:00  INFO 32156 --- [           main] o.s.b.a.w.s.WelcomePageHandlerMapping    : Adding welcome page: class path resource [static/index.html]
-2026-10-02T21:13:30.026+08:00  WARN 32156 --- [           main] ConfigServletWebServerApplicationContext : Exception encountered during context initialization - cancelling refresh attempt: org.springframework.context.ApplicationContextException: Failed to start bean 'webServerStartStop'
-2026-10-02T21:13:30.026+08:00  INFO 32156 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown initiated...
-2026-10-02T21:13:30.040+08:00  INFO 32156 --- [           main] com.zaxxer.hikari.HikariDataSource       : HikariPool-1 - Shutdown completed.
-2026-10-02T21:13:30.060+08:00  INFO 32156 --- [           main] .s.b.a.l.ConditionEvaluationReportLogger : 
-
-Error starting ApplicationContext. To display the condition evaluation report re-run your application with 'debug' enabled.
-2026-10-02T21:13:30.096+08:00 ERROR 32156 --- [           main] o.s.b.d.LoggingFailureAnalysisReporter   : 
-
-***************************
-APPLICATION FAILED TO START
-***************************
-
-Description:
-
-Web server failed to start. Port 8000 was already in use.
-
-Action:
-
-Identify and stop the process that's listening on port 8000 or configure this application to listen on another port.
-
+2026-10-04T13:04:42.274+08:00  INFO 28848 --- [           main] o.s.b.a.w.s.WelcomePageHandlerMapping    : Adding welcome page: class path resource [static/index.html]
+2026-10-04T13:04:42.718+08:00  INFO 28848 --- [           main] o.s.b.w.embedded.tomcat.TomcatWebServer  : Tomcat started on port 8000 (http) with context path ''
+2026-10-04T13:04:42.726+08:00  INFO 28848 --- [           main] com.emailsystem.EmailSystemApplication   : Started EmailSystemApplication in 4.647 seconds (process running for 5.295)
+Email System running at http://localhost:8000
+2026-10-04T13:04:52.400+08:00  INFO 28848 --- [nio-8000-exec-2] o.a.c.c.C.[Tomcat].[localhost].[/]       : Initializing Spring DispatcherServlet 'dispatcherServlet'
+2026-10-04T13:04:52.400+08:00  INFO 28848 --- [nio-8000-exec-2] o.s.web.servlet.DispatcherServlet        : Initializing Servlet 'dispatcherServlet'
+2026-10-04T13:04:52.402+08:00  INFO 28848 --- [nio-8000-exec-2] o.s.web.servlet.DispatcherServlet        : Completed initialization in 1 ms
