@@ -46,7 +46,10 @@ let customerPage = 1;
 let customerSearch = '';
 let customerStatusFilter = '';
 let customerPageSize = 15;
-let selectedIds = [];
+// v2.53 需求1：选中集合改为 id → 该行状态（'active' / 'inactive'），并跨页累积，
+// 所以批量删除/生效/失效的作用范围是“所有选中的客户”，不再只是当前页勾选的那几条。
+// 记住状态是因为翻页后表格只渲染当前页，跨页选中项的状态无法再从 DOM 读到。
+let selected = new Map();
 // “全选当前筛选条件”状态：跨页选中所有匹配记录，excludeIds 为其下被反选排除的项
 let selectAllMatching = false;
 let excludeIds = [];
@@ -136,9 +139,10 @@ async function loadCustomers() {
   const res = await api.get(`/api/customers?search=${encodeURIComponent(customerSearch)}&page=${customerPage}&page_size=${customerPageSize}${statusParam}`);
   const tbody = document.getElementById('customerList');
 
+  // v2.53 需求1：翻页/改每页条数都保留选中集合（所以“所有选中的客户”不会被降级成“当前页”）；
+  // 筛选条件变化时由搜索按钮显式清空，避免旧筛选下的选中项被误操作。
   // 每次加载后按当前选择模式重建 DOM 勾选态与按钮，
   // 保证批量操作按钮的文案（生效/失效/删除）与可用态彻底同步
-  selectedIds = [];
 
   if (res.code === 0 && res.data.customers.length > 0) {
     customerTotal = res.data.total;
@@ -176,7 +180,7 @@ async function loadCustomers() {
         // 随即可以用工具栏的"生效/失效"操作这一行（跨页全选模式也一并退出）
         selectAllMatching = false;
         excludeIds = [];
-        selectedIds = [parseInt(this.dataset.id)];
+        selected = new Map([[parseInt(this.dataset.id), rowStatus(this)]]);
         applyCheckboxState();
       };
       // v2.42 需求1：整行双击直接进入"编辑客户"窗口（客户号/创建时间/最后修改时间只读）
@@ -214,11 +218,10 @@ window.setCustomerPageSize = function(s) {
 /** 把当前选择模式映射到本页复选框的勾选状态 */
 function applyCheckboxState() {
   const excludeSet = new Set(excludeIds);
-  const selectedSet = new Set(selectedIds);
   document.querySelectorAll('#customerList tr[data-id]').forEach(tr => {
     const id = parseInt(tr.dataset.id);
     const cb = tr.querySelector('.cust-check');
-    cb.checked = selectAllMatching ? !excludeSet.has(id) : selectedSet.has(id);
+    cb.checked = selectAllMatching ? !excludeSet.has(id) : selected.has(id);
   });
   const boxes = [...document.querySelectorAll('.cust-check')];
   document.getElementById('checkAll').checked = boxes.length > 0 && boxes.every(cb => cb.checked);
@@ -226,9 +229,23 @@ function applyCheckboxState() {
   renderSelectionBanner();
 }
 
+/** 从表格行读出口径统一的状态（数据库里历史数据的 null 也按“生效”处理） */
+function rowStatus(tr) {
+  return tr.dataset.status === 'inactive' ? 'inactive' : 'active';
+}
+
+/** 选中项里不在当前页的条数（v2.53 需求1：跨页累积后需要让用户看见“还有别页的选中项”） */
+function offPageSelectedCount() {
+  const onPage = new Set([...document.querySelectorAll('#customerList tr[data-id]')]
+    .map(tr => parseInt(tr.dataset.id)));
+  let n = 0;
+  selected.forEach((status, id) => { if (!onPage.has(id)) n++; });
+  return n;
+}
+
 /** 当前有效选中数（全选模式 = 筛选总数 - 排除数） */
 function getEffectiveCount() {
-  return selectAllMatching ? Math.max(0, customerTotal - excludeIds.length) : selectedIds.length;
+  return selectAllMatching ? Math.max(0, customerTotal - excludeIds.length) : selected.size;
 }
 
 /** 筛选条件的可读描述，用于提示条 */
@@ -273,16 +290,19 @@ function renderSelectionBanner() {
 
   const pageBoxes = [...document.querySelectorAll('.cust-check')];
   const allPageChecked = pageBoxes.length > 0 && pageBoxes.every(cb => cb.checked);
-  if (allPageChecked && customerTotal > selectedIds.length) {
+  // v2.53 需求1：勾选跨页累积，提示条报的是“所有选中的客户”，并说明其中有多少条不在当前页
+  const offPage = offPageSelectedCount();
+  const caption = `已选中 ${selected.size} 条` + (offPage ? `（含其他页 ${offPage} 条）` : '');
+  if (allPageChecked && customerTotal > selected.size) {
     el.innerHTML = `
-      <span class="banner-strong">当前页 ${selectedIds.length} 条已全部选中</span>
+      <span class="banner-strong">${caption}</span>
       ${selectionCheckboxes(false)}
       ${total}`;
   } else {
     // v2.46 需求2：提示条不再提供"清除选择"链接（取消选中由逐行复选框或单击行完成），
     // 这里只剩"已选中 N 条"与装饰性的"共 N 条"说明。
     el.innerHTML = `
-      <span class="banner-strong">已选中 ${selectedIds.length} 条</span>
+      <span class="banner-strong">${caption}</span>
       ${total}`;
   }
 }
@@ -290,14 +310,14 @@ function renderSelectionBanner() {
 window.selectAllMatchingCustomers = function() {
   selectAllMatching = true;
   excludeIds = [];
-  selectedIds = [];
+  selected = new Map();
   applyCheckboxState();
 };
 
 window.clearCustomerSelection = function() {
   selectAllMatching = false;
   excludeIds = [];
-  selectedIds = [];
+  selected = new Map();
   document.querySelectorAll('.cust-check, #checkAll').forEach(cb => { cb.checked = false; });
   updateSelectionButtons();
   renderSelectionBanner();
@@ -313,7 +333,12 @@ function updateSelection() {
       if (cb.checked) excludeIds = excludeIds.filter(x => x !== id);
     });
   } else {
-    selectedIds = boxes.filter(cb => cb.checked).map(cb => parseInt(cb.value));
+    // v2.53 需求1：只增删本页的选中项，其他页已勾选的客户保持选中状态
+    boxes.forEach(cb => {
+      const id = parseInt(cb.value);
+      if (cb.checked) selected.set(id, rowStatus(cb.closest('tr')));
+      else selected.delete(id);
+    });
   }
   document.getElementById('checkAll').checked = boxes.length > 0 && boxes.every(cb => cb.checked);
   updateSelectionButtons();
@@ -321,18 +346,15 @@ function updateSelection() {
 }
 
 /**
- * 读取当前选中记录的状态集合。
- * 以 selectedIds 为唯一依据（而非 DOM 勾选态），避免列表刷新前后
- * DOM 未同步导致计数残留。
+ * 读取选中记录的状态集合。
+ * v2.53 需求1：以选中集合里勾选时记住的状态为准，不再遍历表格——
+ * 选中项可以跨页累积，而 DOM 里只有当前页那几条。
  * @returns {{active: number, inactive: number}} 各状态的选中数量
  */
 function getSelectedStatusCount() {
   let active = 0, inactive = 0;
-  const idSet = new Set(selectedIds);
-  document.querySelectorAll('#customerList tr[data-id]').forEach(tr => {
-    const id = parseInt(tr.dataset.id);
-    if (!idSet.has(id)) return;
-    if (tr.dataset.status === 'inactive') inactive++;
+  selected.forEach((status) => {
+    if (status === 'inactive') inactive++;
     else active++;
   });
   return { active, inactive };
@@ -349,8 +371,8 @@ function updateSelectionButtons() {
   const n = getEffectiveCount();
 
   if (selectAllMatching) {
-    // 跨页全选：后端按筛选条件整体变更，生效/失效始终可用；
-    // 删除仅支持逐条/按页选择，避免误操作全部数据
+    // 跨页全选：生效/失效/删除三个批量动作都由后端按当前筛选条件整体处理
+    // （v2.53 需求1 补上了这里的删除，此前删除被硬性禁用、只能逐页勾选）
     actBtn.disabled = n === 0;
     deactBtn.disabled = n === 0;
     actBtn.textContent = n ? `生效 (${n})` : '生效';
@@ -358,9 +380,13 @@ function updateSelectionButtons() {
     actBtn.title = `将当前筛选条件下选中的 ${n} 个客户设置为生效`;
     deactBtn.title = `将当前筛选条件下选中的 ${n} 个客户设置为失效`;
 
-    delBtn.disabled = true;
-    delBtn.textContent = '删除';
-    delBtn.title = '批量删除仅支持在页面内勾选具体客户，请先取消全选';
+    delBtn.disabled = n === 0;
+    delBtn.textContent = n ? `删除 (${n})` : '删除';
+    // 实际删除的条数由后端按"是否失效"判定，提示里如实说明范围
+    // （v2.54 需求1：有发送记录的失效客户现在也删得掉，其发送记录会保留）
+    delBtn.title = n
+      ? `删除当前筛选条件下选中的 ${n} 个客户（跨页全选；生效客户会跳过，其余全部删除）`
+      : '请先选择客户';
     return;
   }
 
@@ -396,6 +422,7 @@ function updateSelectionButtons() {
   }
 
   // 删除的禁用提示：区分「未选择」「全部生效」「混合」三种情况
+  const offPage = offPageSelectedCount();
   if (n === 0) {
     delBtn.title = '请先选择客户';
   } else if (isMixed) {
@@ -403,7 +430,8 @@ function updateSelectionButtons() {
   } else if (active > 0) {
     delBtn.title = '只有失效状态的客户才能删除，请先将选中的客户设为失效';
   } else {
-    delBtn.title = `删除选中的 ${n} 个失效客户`;
+    // v2.53 需求1：选中项可以来自多个分页，标题里点明“含其他页”，避免以为只删当前页
+    delBtn.title = `删除选中的 ${n} 个失效客户` + (offPage ? `（含其他页 ${offPage} 个）` : '');
   }
 }
 
@@ -440,16 +468,11 @@ function batchSetCustomerStatus(status) {
     return;
   }
 
-  if (selectedIds.length === 0) return;
-  // 只处理需要变更的记录（以 selectedIds 为准，避免 DOM 勾选态不同步）
-  const idSet = new Set(selectedIds);
+  if (selected.size === 0) return;
+  // 只处理需要变更的记录（v2.53 需求1：以选中集合里记住的状态为准，
+  // 跨页累积的选中项不在当前页也在范围内，不再遍历只渲染当前页的表格）
   const targets = [];
-  document.querySelectorAll('#customerList tr[data-id]').forEach(tr => {
-    const id = parseInt(tr.dataset.id);
-    if (!idSet.has(id)) return;
-    const cur = tr.dataset.status === 'inactive' ? 'inactive' : 'active';
-    if (cur !== status) targets.push(id);
-  });
+  selected.forEach((cur, id) => { if (cur !== status) targets.push(id); });
 
   if (targets.length === 0) {
     showToast('所选客户无需变更', 'error');
@@ -463,6 +486,34 @@ function batchSetCustomerStatus(status) {
     confirmText: '确定',
     onConfirm: async () => {
       const r = await api.post('/api/customers/batch-status', { ids: targets, status });
+      showToast(r.message, r.code === 0 ? 'success' : 'error');
+      clearCustomerSelection();
+      loadCustomers();
+    }
+  });
+}
+
+/**
+ * v2.53 需求1：跨页“全选当前筛选结果”后的批量删除。
+ * 与“批量生效/失效（全部筛选结果）”同一套口径——把筛选条件与排除项交给后端解析，
+ * 删除范围因此不再受当前页限制。
+ */
+function openBatchDeleteByFilterDialog() {
+  const n = getEffectiveCount();
+  if (n === 0) { showToast('没有符合条件的客户', 'error'); return; }
+  Modal.show({
+    title: '批量删除（全部筛选结果）',
+    content: `<p>将对<strong>当前筛选条件下</strong>的全部 <strong>${n}</strong> 个客户执行删除。</p>
+      <p style="margin-top:6px;font-size:13px;color:var(--text-secondary)">筛选条件：${filterDescription()}${excludeIds.length ? `，已排除 ${excludeIds.length} 条` : ''}</p>
+      <p style="margin-top:8px;font-size:13px;color:var(--text-secondary)">只有失效客户会被删除，生效客户会跳过并在结果里说明条数；这些客户已有的发送记录不会消失，仍按发送当时的客户号/姓名/邮箱保留在任务详情与仪表盘的发送记录里。</p>
+      <p style="margin-top:8px;font-size:13px;color:var(--danger)">客户删除后不可恢复。</p>`,
+    confirmText: '删除',
+    onConfirm: async () => {
+      const r = await api.post('/api/customers/batch-delete-by-filter', {
+        search: customerSearch,
+        status: customerStatusFilter,
+        exclude_ids: excludeIds,
+      });
       showToast(r.message, r.code === 0 ? 'success' : 'error');
       clearCustomerSelection();
       loadCustomers();
@@ -546,14 +597,22 @@ async function bindCustomersEvents() {
   document.getElementById('btnBatchDeactivate').onclick = () => batchSetCustomerStatus('inactive');
 
   document.getElementById('btnBatchDelete').onclick = () => {
-    if (selectedIds.length === 0) return;
+    // v2.53 需求1：跨页“全选当前筛选结果”时按筛选条件整体删除，不再要求先取消全选
+    if (selectAllMatching) { openBatchDeleteByFilterDialog(); return; }
+    if (selected.size === 0) return;
+    const ids = [...selected.keys()];
+    const offPage = offPageSelectedCount();
     Modal.show({
       title: '批量删除',
-      content: `<p>确定要删除选中的 ${selectedIds.length} 个客户吗？</p>`,
+      content: `<p>确定要删除选中的 ${ids.length} 个失效客户吗？</p>
+        ${offPage ? `<p style="margin-top:6px;font-size:13px;color:var(--text-secondary)">其中 ${offPage} 个不在当前页，同样在本次删除范围内。</p>` : ''}
+        <p style="margin-top:8px;font-size:13px;color:var(--text-secondary)">这些客户已有的发送记录不会消失，仍按发送当时的客户号/姓名/邮箱保留在任务详情与仪表盘的发送记录里。</p>
+        <p style="margin-top:8px;font-size:13px;color:var(--danger)">客户删除后不可恢复。</p>`,
       confirmText: '删除',
       onConfirm: async () => {
-        const r = await api.post('/api/customers/batch-delete', { ids: selectedIds });
+        const r = await api.post('/api/customers/batch-delete', { ids });
         showToast(r.message, r.code === 0 ? 'success' : 'error');
+        clearCustomerSelection();
         loadCustomers();
       }
     });

@@ -1,6 +1,7 @@
 package com.emailsystem.controller;
 
 import com.emailsystem.common.Result;
+import com.emailsystem.dto.request.CustomerBatchDeleteByFilterDTO;
 import com.emailsystem.dto.request.CustomerBatchStatusByFilterDTO;
 import com.emailsystem.dto.request.CustomerBatchStatusDTO;
 import com.emailsystem.dto.request.CustomerCreateDTO;
@@ -76,13 +77,35 @@ public class CustomerController {
     }
 
     @PostMapping("/batch-delete")
-    public Result<Void> batchDelete(@RequestBody Map<String, List<Long>> body) {
+    public Result<Map<String, Object>> batchDelete(@RequestBody Map<String, List<Long>> body) {
         List<Long> ids = body.getOrDefault("ids", List.of());
         if (ids.isEmpty()) {
             return Result.error("请选择要删除的客户");
         }
-        customerService.batchDelete(ids);
-        return Result.success("批量删除成功");
+        return deleteResult(customerService.batchDelete(ids));
+    }
+
+    /**
+     * 按筛选条件批量删除客户（v2.53 需求1：跨页“全选当前筛选结果”后也能整体删除，
+     * 不再局限于当前页勾选的记录）。
+     */
+    @PostMapping("/batch-delete-by-filter")
+    public Result<Map<String, Object>> batchDeleteByFilter(@RequestBody CustomerBatchDeleteByFilterDTO dto) {
+        return deleteResult(customerService.batchDeleteByFilter(
+                dto.getSearch(), dto.getStatus(), dto.getExcludeIds()));
+    }
+
+    /** 把两类计数拼成一句用户能看懂的话：删了多少、哪些因为是生效客户没删 */
+    private Result<Map<String, Object>> deleteResult(CustomerService.BatchDeleteResult r) {
+        List<String> skipped = new java.util.ArrayList<>();
+        if (r.skippedActive() > 0) skipped.add(r.skippedActive() + " 个生效客户（需先设为失效）");
+        if (r.deleted() == 0) {
+            return Result.error(skipped.isEmpty() ? "没有可删除的客户"
+                    : "没有客户被删除，已跳过 " + String.join("、", skipped));
+        }
+        String message = "已删除 " + r.deleted() + " 个客户";
+        if (!skipped.isEmpty()) message += "，未删除 " + String.join("、", skipped);
+        return Result.success(message, r.toData());
     }
 
     /**

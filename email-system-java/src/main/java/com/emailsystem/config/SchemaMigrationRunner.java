@@ -34,6 +34,8 @@ public class SchemaMigrationRunner implements ApplicationRunner {
         migrateCampaignIntervalUnit();
         dropDeprecatedScheduleColumn();
         addAttemptSnapshotColumns();
+        addLogCustomerSnapshotColumns();
+        dropLogCustomerForeignKey();
         migrateRunTypeFirstBatch();
         optimizeQueryIndexes();
         reconcileInterruptedCampaigns();
@@ -172,6 +174,53 @@ public class SchemaMigrationRunner implements ApplicationRunner {
         }
     }
 
+    /**
+     * v2.54 需求1：发送日志补充收件人快照列，并把存量记录按当时的客户资料回填。
+     * <p>口径与 {@link #addAttemptSnapshotColumns()} 一致：先加列，再只回填"从未快照过"的行
+     * （以 customer_no 为标记，客户号由主键生成必然非空，避免姓名本身为空时反复重跑）。
+     * <p>campaign_logs 没有 created_at/updated_at 列，这条 UPDATE 不会触发
+     * ON UPDATE CURRENT_TIMESTAMP 把历史时间戳刷脏。
+     */
+    private void addLogCustomerSnapshotColumns() {
+        addColumnIfMissing("campaign_logs", "customer_no",
+                "VARCHAR(12) DEFAULT '' COMMENT '客户号快照'");
+        addColumnIfMissing("campaign_logs", "customer_name",
+                "VARCHAR(100) DEFAULT '' COMMENT '客户姓名快照'");
+        addColumnIfMissing("campaign_logs", "customer_email",
+                "VARCHAR(200) DEFAULT '' COMMENT '客户邮箱快照'");
+
+        int backfilled = jdbcTemplate.update(
+                "UPDATE campaign_logs cl"
+                        + " JOIN customers c ON cl.customer_id = c.id"
+                        + " SET cl.customer_no = COALESCE(c.customer_no, ''),"
+                        + "     cl.customer_name = COALESCE(c.name, ''),"
+                        + "     cl.customer_email = COALESCE(c.email, '')"
+                        + " WHERE cl.customer_no IS NULL OR cl.customer_no = ''");
+        if (backfilled > 0) {
+            log.info("迁移完成: {} 条发送记录已回填收件人快照", backfilled);
+        }
+    }
+
+    /**
+     * v2.54 需求1：解除"删过客户必先删其发送记录"的结构约束。
+     * <p>fk_log_customer 建表时没写 ON DELETE，即 RESTRICT：只要客户留有发送记录，
+     * 删除语句就会整批报错，这正是批量删除必须跳过"有发送记录客户"的根因。
+     * 现在改由快照列保证历史可读，因此直接去掉这个外键，让 customer_id 允许指向已删除的客户
+     * （主键不复用，所以这个 ID 不会被后来的新客户冒领）。
+     * <p>删掉外键不等于删掉它所用的索引，所以最后一步确保 (customer_id, status) 组合索引仍在——
+     * 发送记录分页、客户发送统计都靠它。
+     */
+    private void dropLogCustomerForeignKey() {
+        if (!constraintExists("campaign_logs", "fk_log_customer")) {
+            return;
+        }
+        log.info("迁移: 删除 campaign_logs.fk_log_customer（客户删除后发送记录要保留，改由快照列支撑）");
+        jdbcTemplate.execute("ALTER TABLE campaign_logs DROP FOREIGN KEY fk_log_customer");
+        // 若 MySQL 当初是为这个外键自动建的索引，它会叫 fk_log_customer 并在外键移除后失去意义
+        dropIndexIfExists("campaign_logs", "fk_log_customer");
+        addIndexIfMissing("campaign_logs", "idx_log_customer_status", "customer_id, status");
+    }
+
     private void addColumnIfMissing(String table, String column, String definition) {
         if (columnExists(table, column)) {
             return;
@@ -264,6 +313,15 @@ public class SchemaMigrationRunner implements ApplicationRunner {
                 "SELECT COUNT(*) FROM information_schema.STATISTICS "
                         + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND INDEX_NAME = ?",
                 Integer.class, table, index);
+        return count != null && count > 0;
+    }
+
+    /** 外键等表级约束的存在性检查：ALTER TABLE DROP FOREIGN KEY 对不存在的约束会直接报错，必须先查 */
+    private boolean constraintExists(String table, String constraint) {
+        Integer count = jdbcTemplate.queryForObject(
+                "SELECT COUNT(*) FROM information_schema.TABLE_CONSTRAINTS "
+                        + "WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = ? AND CONSTRAINT_NAME = ?",
+                Integer.class, table, constraint);
         return count != null && count > 0;
     }
 }

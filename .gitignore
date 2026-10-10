@@ -1,0 +1,55 @@
+# ============================================================
+#  外贸邮件发送系统 .gitignore
+#  目标：只提交源码与文档，不提交构建产物 / 运行期文件 / 含个人信息的临时件
+#  注意：.gitignore 只对"未被跟踪"的文件生效。本仓库历史上已经跟踪了
+#        target/、logs/、.app.pid 等，需先按 `git 命令.txt` 里"一次性瘦身"
+#        那条命令 git rm --cached 退出跟踪，本文件才起作用。
+# ============================================================
+
+# ---------- Maven 构建产物 ----------
+# 47 MB 的 fat jar 每重建一次就向 .git 追加一个新对象（当前 .git 已 305 MB）
+target/
+*.jar
+*.war
+*.jar.original
+
+# 历史遗留的发布目录（里面是被跟踪的旧 jar，同样退出跟踪）
+dist/
+
+# ---------- 运行期产物 ----------
+# startrun.ps1 写日志与 PID；这些每次启动都变，会产生无意义 diff
+logs/
+.app.pid
+*.log
+*.log.bak
+*.log.err
+
+# ---------- 一次性调试 / 恢复脚本 ----------
+# 回归脚本与夹具产物；恢复目录里曾有 binlog 副本和含收件人姓名邮箱的 SQL
+_reg_*.py
+_ui*_fx.py
+_pre_v*_sig.txt
+_recover/
+_rollback_tmp/
+*.sql.tmp
+
+# ---------- 本地配置与凭据 ----------
+# 真正的数据库口令请放这里，不要提交（模板见 application.yml）
+application-local.yml
+application-local.properties
+*.cnf
+.env
+
+# ---------- 编辑器 / 操作系统 ----------
+.idea/
+*.iml
+.vscode/
+*.swp
+Thumbs.db
+Desktop.ini
+$RECYCLE.BIN/
+
+# ---------- 保留项（这些必须提交，别忽略）----------
+# src/main/resources/db/schema.sql  表结构基线
+# src/main/resources/application.yml  连接参数模板（口令请改环境变量后再考虑忽略）
+# 需求分析文档.md                    每轮变更记录

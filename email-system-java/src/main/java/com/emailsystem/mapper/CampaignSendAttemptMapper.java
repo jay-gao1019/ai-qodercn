@@ -36,11 +36,12 @@ public interface CampaignSendAttemptMapper extends BaseMapper<CampaignSendAttemp
                COALESCE(NULLIF(a.customer_name, ''), c.name) AS customer_name,
                COALESCE(NULLIF(a.customer_email, ''), c.email) AS customer_email,
                COALESCE(NULLIF(a.customer_company, ''), c.company) AS customer_company,
-               c.customer_no AS customer_no,
+               COALESCE(NULLIF(c.customer_no, ''), cl.customer_no) AS customer_no,
                a.template_name, a.template_subject, a.smtp_name
         FROM campaign_send_attempts a
         JOIN campaign_runs r ON a.run_id = r.id
         LEFT JOIN customers c ON a.customer_id = c.id
+        LEFT JOIN campaign_logs cl ON a.campaign_log_id = cl.id
         WHERE a.campaign_id = #{campaignId}
         <if test="runId != null">AND a.run_id = #{runId}</if>
         <if test="status != null and status != ''">AND a.status = #{status}</if>

@@ -12,6 +12,7 @@ import org.springframework.stereotype.Service;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -141,6 +142,29 @@ public class CustomerService {
      * @return 实际被更新的记录数
      */
     public int batchUpdateStatusByFilter(String search, String status, List<Long> excludeIds, String targetStatus) {
+        LambdaQueryWrapper<Customer> wrapper = byFilterWrapper(search, status, excludeIds);
+
+        // 先统计命中的记录，用于返回真实变更数量（并排除已是目标状态的记录）
+        wrapper.select(Customer::getId, Customer::getStatus);
+        List<Customer> matched = customerMapper.selectList(wrapper);
+        List<Long> toUpdate = matched.stream()
+                .filter(c -> !targetStatus.equals(c.getStatus()))
+                .map(Customer::getId)
+                .collect(Collectors.toList());
+        if (toUpdate.isEmpty()) return 0;
+
+        customerMapper.update(null,
+                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Customer>()
+                        .in(Customer::getId, toUpdate)
+                        .set(Customer::getStatus, targetStatus));
+        return toUpdate.size();
+    }
+
+    /**
+     * 构造跨页“全选当前筛选结果”的查询条件，口径与 {@link #list} 完全一致。
+     * <p>批量生效/失效与批量删除（v2.53 需求1）共用这一份，避免两种批量操作的“选中范围”分叉。
+     */
+    private LambdaQueryWrapper<Customer> byFilterWrapper(String search, String status, List<Long> excludeIds) {
         LambdaQueryWrapper<Customer> wrapper = new LambdaQueryWrapper<>();
         if (search != null && !search.isEmpty()) {
             String s = "%" + search + "%";
@@ -157,21 +181,54 @@ public class CustomerService {
         if (excludeIds != null && !excludeIds.isEmpty()) {
             wrapper.notIn(Customer::getId, excludeIds);
         }
+        return wrapper;
+    }
 
-        // 先统计命中的记录，用于返回真实变更数量（并排除已是目标状态的记录）
-        wrapper.select(Customer::getId, Customer::getStatus);
-        List<Customer> matched = customerMapper.selectList(wrapper);
-        List<Long> toUpdate = matched.stream()
-                .filter(c -> !targetStatus.equals(c.getStatus()))
+    /** 批量删除的结果计数：真正删除的、因“生效状态”被保护的 */
+    public record BatchDeleteResult(int deleted, int skippedActive) {
+
+        public Map<String, Object> toData() {
+            Map<String, Object> data = new java.util.LinkedHashMap<>();
+            data.put("deleted", deleted);
+            data.put("skipped_active", skippedActive);
+            return data;
+        }
+    }
+
+    /**
+     * 按筛选条件批量删除客户（v2.53 需求1：跨页“全选当前筛选结果”后也能删除）。
+     * <p>删除范围与 {@link #batchUpdateStatusByFilter} 命中的记录一致。
+     */
+    public BatchDeleteResult batchDeleteByFilter(String search, String status, List<Long> excludeIds) {
+        List<Customer> matched = customerMapper.selectList(
+                byFilterWrapper(search, status, excludeIds).select(Customer::getId));
+        return deleteGuarded(matched.stream().map(Customer::getId).collect(Collectors.toList()));
+    }
+
+    /**
+     * 带保护的批量删除：只删除“失效”的客户，生效客户按原因计数返回。
+     * <p>“生效客户不许删除”是界面既有口径，改由后端兜底，避免旧页面或并发状态绕过。
+     * <p>v2.54 需求1：不再跳过“有发送记录”的客户。这条保护原本来自 campaign_logs 上
+     * 无 ON DELETE 的外键（RESTRICT），现在外键已撤，发送记录靠自身的收件人快照继续展示
+     * （{@code selectLogsWithCustomer} / {@code selectSendRecords} 客户表查不到就用快照），
+     * 所以删掉客户不会连带丢历史，跨页全选能真正删完选中的记录。
+     */
+    public BatchDeleteResult deleteGuarded(List<Long> ids) {
+        List<Long> requested = ids == null ? List.of()
+                : ids.stream().filter(Objects::nonNull).distinct().collect(Collectors.toList());
+        if (requested.isEmpty()) return new BatchDeleteResult(0, 0);
+
+        List<Customer> rows = customerMapper.selectList(
+                new LambdaQueryWrapper<Customer>().select(Customer::getId, Customer::getStatus)
+                        .in(Customer::getId, requested));
+        List<Long> inactiveIds = rows.stream()
+                .filter(c -> STATUS_INACTIVE.equals(c.getStatus()))
                 .map(Customer::getId)
                 .collect(Collectors.toList());
-        if (toUpdate.isEmpty()) return 0;
+        int skippedActive = rows.size() - inactiveIds.size();
 
-        customerMapper.update(null,
-                new com.baomidou.mybatisplus.core.conditions.update.LambdaUpdateWrapper<Customer>()
-                        .in(Customer::getId, toUpdate)
-                        .set(Customer::getStatus, targetStatus));
-        return toUpdate.size();
+        if (!inactiveIds.isEmpty()) customerMapper.deleteBatchIds(inactiveIds);
+        return new BatchDeleteResult(inactiveIds.size(), skippedActive);
     }
 
     public void create(CustomerCreateDTO dto) {
@@ -213,10 +270,8 @@ public class CustomerService {
         customerMapper.deleteById(id);
     }
 
-    public void batchDelete(List<Long> ids) {
-        if (ids != null && !ids.isEmpty()) {
-            customerMapper.deleteBatchIds(ids);
-        }
+    public BatchDeleteResult batchDelete(List<Long> ids) {
+        return deleteGuarded(ids);
     }
 
     public void importCustomers(List<Map<String, String>> customerDataList) {

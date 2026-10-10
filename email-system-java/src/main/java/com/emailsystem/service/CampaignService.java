@@ -158,13 +158,7 @@ public class CampaignService {
 
         transactionTemplate.executeWithoutResult(status -> {
             campaignMapper.insert(campaign);
-            for (Long cid : customerIds) {
-                CampaignLog log = new CampaignLog();
-                log.setCampaignId(campaign.getId());
-                log.setCustomerId(cid);
-                log.setStatus("pending");
-                campaignLogMapper.insert(log);
-            }
+            insertPendingLogs(campaign.getId(), customerIds);
         });
 
         Map<String, Object> data = new LinkedHashMap<>();
@@ -218,13 +212,7 @@ public class CampaignService {
             if (newRecipients != null) {
                 campaignLogMapper.delete(new LambdaQueryWrapper<CampaignLog>()
                         .eq(CampaignLog::getCampaignId, campaignId));
-                for (Long cid : newRecipients) {
-                    CampaignLog log = new CampaignLog();
-                    log.setCampaignId(campaignId);
-                    log.setCustomerId(cid);
-                    log.setStatus("pending");
-                    campaignLogMapper.insert(log);
-                }
+                insertPendingLogs(campaignId, newRecipients);
                 campaignMapper.update(null, new LambdaUpdateWrapper<Campaign>()
                         .eq(Campaign::getId, campaignId)
                         .set(Campaign::getTotal, newRecipients.size())
@@ -427,6 +415,33 @@ public class CampaignService {
                                 .and(w -> w.ne(Customer::getStatus, CustomerService.STATUS_INACTIVE)
                                         .or().isNull(Customer::getStatus)))
                 .stream().map(Customer::getId).toList();
+    }
+
+    /**
+     * 为任务批量建立"待发送"日志，并写入收件人快照（客户号/姓名/邮箱）。
+     * <p>v2.54 需求1：失效客户现在也能删除，而这条日志要在校客户被删掉之后仍能被完整展示，
+     * 所以建任务时就按当时的客户资料留一份快照；读取端一律"客户表现存资料优先、查不到才用快照"，
+     * 客户改名后发送记录跟着变的口径（v2.17 需求1）不受影响。
+     */
+    private void insertPendingLogs(Long campaignId, List<Long> customerIds) {
+        Map<Long, Customer> recipients = new HashMap<>();
+        customerMapper.selectList(new LambdaQueryWrapper<Customer>()
+                        .select(Customer::getId, Customer::getCustomerNo, Customer::getName, Customer::getEmail)
+                        .in(Customer::getId, customerIds))
+                .forEach(c -> recipients.put(c.getId(), c));
+        for (Long cid : customerIds) {
+            CampaignLog pendingLog = new CampaignLog();
+            pendingLog.setCampaignId(campaignId);
+            pendingLog.setCustomerId(cid);
+            pendingLog.setStatus("pending");
+            Customer c = recipients.get(cid);
+            if (c != null) {
+                pendingLog.setCustomerNo(c.getCustomerNo());
+                pendingLog.setCustomerName(c.getName());
+                pendingLog.setCustomerEmail(c.getEmail());
+            }
+            campaignLogMapper.insert(pendingLog);
+        }
     }
 
     private String toJson(Object obj) {

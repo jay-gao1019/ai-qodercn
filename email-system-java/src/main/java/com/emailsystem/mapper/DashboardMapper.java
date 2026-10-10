@@ -139,15 +139,23 @@ public interface DashboardMapper {
     """)
     List<Map<String, Object>> selectTemplateStats();
 
+    /**
+     * 仪表盘"发送记录"钻取列表。
+     * <p>v2.54 需求1：客户改 LEFT JOIN + 快照回退，收件人已被删除的记录不再从这张表里消失
+     * （此前 INNER JOIN 会让"删除失效客户"直接把对应的发送历史一并抹掉）。
+     * 实时资料仍优先于快照，客户改名后这里跟着变（v2.17 需求1 口径不变）。
+     */
     @Select("""
         <script>
         SELECT cl.id, cl.campaign_id, c.name AS campaign_name, t.name AS template_name,
-               cu.customer_no AS customer_no,
-               cu.name AS customer_name, cu.email AS customer_email, cu.company,
+               COALESCE(NULLIF(cu.customer_no, ''), cl.customer_no) AS customer_no,
+               COALESCE(NULLIF(cu.name, ''), cl.customer_name) AS customer_name,
+               COALESCE(NULLIF(cu.email, ''), cl.customer_email) AS customer_email,
+               cu.company,
                cl.status, cl.error_message, cl.sent_at
         FROM campaign_logs cl
         JOIN campaigns c ON cl.campaign_id = c.id
-        JOIN customers cu ON cl.customer_id = cu.id
+        LEFT JOIN customers cu ON cl.customer_id = cu.id
         LEFT JOIN templates t ON c.template_id = t.id
         <where>
             cl.status IN ('sent', 'failed') AND cl.sent_at IS NOT NULL

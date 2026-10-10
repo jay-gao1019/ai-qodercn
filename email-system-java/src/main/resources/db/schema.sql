@@ -76,19 +76,26 @@ CREATE TABLE IF NOT EXISTS campaigns (
     INDEX idx_smtp (smtp_config_id)
 ) ENGINE=InnoDB COMMENT='发送任务表';
 
+-- v2.54 需求1：客户快照列与 campaign_send_attempts 同一套口径。
+-- 失效客户现在可以删除，删除后这条发送记录要照原样显示，故把发送时的客户号/姓名/邮箱留在这里；
+-- 读取一律"客户表现存资料优先、查不到才用快照"，所以客户改名后实时同步的口径不受影响（v2.17 需求1）。
+-- customer_id 保留 NOT NULL 且不再建外键：留痕要能指向已删除的客户，同时任务详情的"发送次数"
+-- 与逐次发送历史仍按这个 ID 关联 campaign_send_attempts，置空会让历史次数退化。
 CREATE TABLE IF NOT EXISTS campaign_logs (
-    id            BIGINT       PRIMARY KEY AUTO_INCREMENT,
-    campaign_id   BIGINT       NOT NULL COMMENT '关联任务 ID',
-    customer_id   BIGINT       NOT NULL COMMENT '关联客户 ID',
-    status        VARCHAR(20)  DEFAULT 'pending' COMMENT '状态: pending/sent/failed',
-    error_message TEXT         COMMENT '错误信息',
-    sent_at       DATETIME     COMMENT '发送时间',
+    id              BIGINT       PRIMARY KEY AUTO_INCREMENT,
+    campaign_id     BIGINT       NOT NULL COMMENT '关联任务 ID',
+    customer_id     BIGINT       NOT NULL COMMENT '关联客户 ID（客户删除后仍保留，用于关联逐次发送留痕）',
+    status          VARCHAR(20)  DEFAULT 'pending' COMMENT '状态: pending/sent/failed',
+    error_message   TEXT         COMMENT '错误信息',
+    sent_at         DATETIME     COMMENT '发送时间',
+    customer_no     VARCHAR(12)  DEFAULT '' COMMENT '客户号快照',
+    customer_name   VARCHAR(100) DEFAULT '' COMMENT '客户姓名快照',
+    customer_email  VARCHAR(200) DEFAULT '' COMMENT '客户邮箱快照',
     INDEX idx_log_campaign_status (campaign_id, status),
     INDEX idx_log_customer_status (customer_id, status),
     INDEX idx_log_status_sent (status, sent_at),
-    CONSTRAINT fk_log_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE,
-    CONSTRAINT fk_log_customer FOREIGN KEY (customer_id) REFERENCES customers(id)
-) ENGINE=InnoDB COMMENT='发送日志表';
+    CONSTRAINT fk_log_campaign FOREIGN KEY (campaign_id) REFERENCES campaigns(id) ON DELETE CASCADE
+) ENGINE=InnoDB COMMENT='发送日志表（含收件人快照，客户删除后发送历史仍完整）';
 
 CREATE TABLE IF NOT EXISTS campaign_runs (
     id          BIGINT       PRIMARY KEY AUTO_INCREMENT,

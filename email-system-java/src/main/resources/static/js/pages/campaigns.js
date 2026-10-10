@@ -423,17 +423,26 @@ async function findCampaignById(id) {
 /**
  * v2.38 需求3.1：撤掉 v2.35"点客户名称弹编辑窗"的链接，客户名称回到纯文本；
  * 编辑入口改为整行双击 → "编辑客户"窗口（见 rowShowLogCustomer）。
+ * <p>v2.54 需求1：收件人已被删除时按发送日志的快照显示姓名并标注"（已删除）"，
+ * 让这行历史看起来仍然完整，同时解释为什么双击改不了客户。
  */
 function logCustomerNameCell(l) {
-  return escHtml(l.customer_name) || '-';
+  const name = escHtml(l.customer_name) || '-';
+  return l.customer_exists === 0 ? `${name}（已删除）` : name;
 }
 
 /**
  * v2.38 需求3.1 引入、v2.42 需求3 改为直接编辑：双击发送记录整行打开"编辑客户"窗口。
  * 必须先取消待执行的单击筛选，否则一次双击会连带把"发送详情"筛成该邮箱。
+ * <p>v2.54 需求1：收件人已被删除（后端 customer_exists=0）时这行历史已经没有可编辑的客户档案，
+ * 给出提示而不是弹一个"未找到该客户"的空窗口。
  */
 window.rowShowLogCustomer = function(event) {
   clearTimeout(logRowFilterTimer);
+  if (event.currentTarget.dataset.exists === '0') {
+    showToast('该收件人已被删除，仅保留发送记录，无法编辑客户信息', 'error');
+    return;
+  }
   const cid = parseInt(event.currentTarget.dataset.cust, 10);
   if (!cid) return;
   window.showCustomerDetail(cid, () => loadLogPage(currentDetailCampaignId));
@@ -505,7 +514,9 @@ async function loadLogPage(campaignId, campaign) {
               const activeRow = attCustomerId && attCustomerId === l.customer_id;
               // v2.33 需求3：重试后才成功的记录文案是结论而非报错，用成功色显示
               const errColor = l.status === 'failed' ? 'var(--danger)' : 'var(--success)';
-              return `<tr class="clickable-row" data-cust="${l.customer_id}" data-custno="${escHtml(l.customer_no)}" data-email="${escHtml(l.customer_email)}" data-log-status="${escHtml(l.status)}" data-log-sent-at="${escHtml(sentAt)}" data-log-error="${escHtml(l.error_message)}"${activeRow ? ' style="background:#EFF6FF"' : ''} title="${countHint}；双击编辑该客户信息" onclick="rowFilterSendDetail(event)" ondblclick="rowShowLogCustomer(event)"><td>${escHtml(l.customer_no) || '-'}</td><td>${logCustomerNameCell(l)}</td><td>${escHtml(l.customer_email) || '-'}</td><td><strong>${countText}</strong></td><td>${logStatus}</td><td style="font-size:12px;color:${errColor}">${escHtml(l.error_message) || '-'}</td><td style="font-size:13px">${sentAt}</td></tr>`;
+              // v2.54 需求1：收件人已被删除时这一行仍按快照显示，但客户档案已不存在
+              const custGone = l.customer_exists === 0;
+              return `<tr class="clickable-row" data-cust="${l.customer_id}" data-exists="${custGone ? 0 : 1}" data-custno="${escHtml(l.customer_no)}" data-email="${escHtml(l.customer_email)}" data-log-status="${escHtml(l.status)}" data-log-sent-at="${escHtml(sentAt)}" data-log-error="${escHtml(l.error_message)}"${activeRow ? ' style="background:#EFF6FF"' : ''} title="${countHint}${custGone ? '' : '；双击编辑该客户信息'}" onclick="rowFilterSendDetail(event)" ondblclick="rowShowLogCustomer(event)"><td>${escHtml(l.customer_no) || '-'}</td><td>${logCustomerNameCell(l)}</td><td>${escHtml(l.customer_email) || '-'}</td><td><strong>${countText}</strong></td><td>${logStatus}</td><td style="font-size:12px;color:${errColor}">${escHtml(l.error_message) || '-'}</td><td style="font-size:13px">${sentAt}</td></tr>`;
             }).join('') : '<tr><td colspan="7" style="text-align:center;color:var(--text-secondary)">暂无记录</td></tr>'}
           </tbody>
         </table>

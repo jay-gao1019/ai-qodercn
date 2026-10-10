@@ -1,3 +1,89 @@
-git add .
-git commit -m "10.4 前端界面样式优化与体现调整"
+============================================================
+ git 命令册（2026-10-10 优化版）
+ 原内容只有三行，已被下面的流程取代：
+   git add .
+   git commit -m "10.9 优化删除功能支持全部删除"
+   git push origin master
+ 优化原因：`git add .` 会把 47MB 的 jar、target/ 下的 .class、logs/ 里的运行日志、
+ .app.pid 一起提交；这三行会把两轮需求（v2.53 + v2.54）压成一条看不出表结构变更的记录。
+============================================================
+
+------------------------------------------------------------
+【0】一次性：仓库瘦身（让 .gitignore 生效，只做一次）
+ 说明：--cached 只把文件从"跟踪列表"里摘掉，**磁盘上的文件不会被删**，
+       target/email-system-1.0.0.jar 仍在原地，8000 照常能起。
+------------------------------------------------------------
+cd /d D:\jay\外贸邮件系统\邮件系统2
+
+git rm -r --cached --quiet email-system-java/target email-system-java/dist logs .app.pid
+git rm --cached --quiet run8001.log run8002.log run8003.log run8004.log run8010.log
+git status --short            REM 应看到一大片 D（删除跟踪），且文件仍在硬盘上
+git commit -m "chore: 仓库瘦身——停止跟踪构建产物与运行日志，新增 .gitignore" -m "target/、dist/、logs/、.app.pid 退出版本库（jar 47MB 每次重建都会向 .git 追加新对象，当前 .git 已 305MB）。文件保留在工作区，启动方式不变：startrun.ps1 读取 target/email-system-1.0.0.jar。"
+
+------------------------------------------------------------
+【1】日常三步（提交前先复核，别直接 push）
+------------------------------------------------------------
+git status --short                              REM 看清改了哪些
+git add -A                                      REM 有 .gitignore 兜底，-A 等价于旧写法
+git diff --cached --stat                        REM 复核暂存内容：不该再出现 target/、*.jar、logs/
+git commit -m "标题" -m "正文（为什么这么改）"
+git log --oneline -3                            REM 确认这条提交是自己的
 git push origin master
+
+ 也可以只加源码与文档，最稳：
+git add email-system-java/src 需求分析文档.md .gitignore
+
+------------------------------------------------------------
+【2】本轮（v2.53 + v2.54）建议的提交命令
+ 为什么合成一条：v2.53 与 v2.54 改的是同一批文件（customers.js、CustomerService、
+ CustomerController），工作区里已经互相覆盖，按文件拆不出两个干净的提交。
+------------------------------------------------------------
+git add email-system-java/src 需求分析文档.md .gitignore
+git status --short
+git commit -m "v2.53+v2.54 客户管理支持跨页全选删除，删除不再受发送记录限制" -m "v2.53：选中模型改为跨页累积（Map），新增 POST /api/customers/batch-delete-by-filter（与批量生效同一套筛选口径），接口 47→48。
+v2.54：campaign_logs 增加 customer_no/customer_name/customer_email 收件人快照三列，读取链路改 LEFT JOIN + COALESCE，删除客户的发送记录仍可读；启动迁移 dropLogCustomerForeignKey() 撤掉 fk_log_customer（不可逆），删除保护由两道减为一道（仅保留'生效客户须先设为失效'）。
+注意：升级后 SchemaMigrationRunner 会对共享库执行加列+回填+撤外键，启动过一次即生效且无法靠回退代码恢复；已删客户的发送记录在 v2.53 及更早版本的界面上会不可见。
+验证：HTTP 回归 105/105 通过，浏览器回归在 8010 完成（写入全部桩拦截），8000 已于 2026-10-10 由用户 cp + startrun.ps1 升到 v2.54。"
+git push origin master
+
+------------------------------------------------------------
+【3】提交前 10 秒自检（防再次把不该传的传上去）
+------------------------------------------------------------
+REM 暂存区里有没有 jar / 日志 / class / 备份
+git diff --cached --name-only | findstr /i /r "\.jar \.log \.class \.bak \.cnf \.sql"
+
+REM 单文件超过 5MB 一律先停下想一想（GitHub 对 >50MB 报警、>100MB 拒绝）——PowerShell 版：
+git diff --cached --name-only | ForEach-Object { if (Test-Path $_) { $s = (Get-Item $_).Length; if ($s -gt 5MB) { "{0,12:N0}  {1}" -f $s, $_ } } }
+
+REM 关键：application.yml 里是明文数据库口令，且**已经进了历史并被推到 GitHub**
+git log --oneline -- email-system-java/src/main/resources/application.yml
+REM 所以：不要往这个文件里再加任何新口令；真正的补救是改库口令 + 把它换成环境变量占位。
+
+------------------------------------------------------------
+【4】常用回退（都不碰硬盘上的文件）
+------------------------------------------------------------
+git restore --staged <文件>        REM 取消暂存（等价旧的 git reset HEAD <文件>）
+git restore <文件>                 REM 丢弃工作区对该文件的修改（**会丢改动，先 git diff 看清**）
+git commit --amend -m "新信息"     REM 仅改最近一条**尚未 push** 的提交信息
+git log --oneline -10
+git diff HEAD~1 --stat
+
+------------------------------------------------------------
+【5】push 报错处理
+------------------------------------------------------------
+- 报 `schannel: ... CRYPT_E_REVOCATION_OFFLINE`（本机 2026-10-10 实测 git fetch 就是这样）：
+  是 Windows schannel 取不到证书吊销列表，通常是离线/代理/时间不对。先确认能打开 github.com，
+  再重试。长期需要关闭吊销检查才推得动的话：
+     git config --global http.schannelCheckRevoke false
+  ——这会同时关闭证书吊销校验，属于降低安全性的全局设置，建议网络正常时改回 true。
+- 报 `rejected (non-fast-forward)`：远端有别人/另一台机器的提交，用
+     git pull --rebase origin master
+  然后再 push；不要用 --force。
+
+------------------------------------------------------------
+【6】新版本 jar 怎么发布（替代"把 jar 提交进仓库"）
+------------------------------------------------------------
+jar 退出跟踪后，需要留存某个可运行版本时，用 GitHub Releases 附上传产物，
+或在提交里只打 tag：
+  git tag -a v2.54 -m "v2.54 全部选中可删除 + 发送记录快照"
+  git push origin v2.54

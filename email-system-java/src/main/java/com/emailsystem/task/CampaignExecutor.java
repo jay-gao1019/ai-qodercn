@@ -223,10 +223,15 @@ public class CampaignExecutor {
             boolean success = "sent".equals(finalStatus);
 
             transactionTemplate.executeWithoutResult(s -> {
+                // v2.54 需求1：写终态时按"这次发送用的资料"刷新收件人快照，
+                // 之后这个客户被删除，发送记录与逐次历史仍能还原当时看到的客户号/姓名/邮箱。
                 campaignLogMapper.update(null, new LambdaUpdateWrapper<CampaignLog>()
                         .eq(CampaignLog::getId, logEntry.getId())
                         .set(CampaignLog::getStatus, finalStatus)
                         .set(CampaignLog::getErrorMessage, errorMsg)
+                        .set(CampaignLog::getCustomerNo, customer.getCustomerNo())
+                        .set(CampaignLog::getCustomerName, customer.getName())
+                        .set(CampaignLog::getCustomerEmail, customer.getEmail())
                         .setSql("sent_at = CURRENT_TIMESTAMP"));
 
                 campaignMapper.update(null, new LambdaUpdateWrapper<Campaign>()
